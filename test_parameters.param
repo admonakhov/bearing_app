@@ -1,0 +1,7 @@
+P_tar 9,5
+f_tar 5
+P_rate_tar 15
+L_lim 5,66
+T_max 30
+N_max_lim 30000
+M_max 10
