@@ -2,7 +2,8 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLab
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer
 import numpy as np
-from src.utils import read_json
+from src.utils import read_json, moving_average
+
 
 class AxisChooser(QWidget):
     def __init__(self):
@@ -94,6 +95,7 @@ class GraphBar(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_graph)
         self.timer.start(100)
+        self.filter_frame = int(self.config['graph_filter_frame'])
 
 
 
@@ -106,9 +108,14 @@ class GraphBar(QWidget):
         if self.axis.graph_type == 'rolling':
             x = np.array(self.datasaver.data[x_axis][-self.n_vals:])
             y = np.array(self.datasaver.data[y_axis][-self.n_vals:])
-        elif self.axis.graph_type == 'None':
+        else:
             x = np.array(self.datasaver.data[x_axis])
             y = np.array(self.datasaver.data[y_axis])
+
+        if self.filter_frame:
+            x = moving_average(x, self.filter_frame)
+            y = moving_average(y, self.filter_frame)
+
         try:
             self.graph.curve.setData(x, y)
             self.graph.graphWidget.update()

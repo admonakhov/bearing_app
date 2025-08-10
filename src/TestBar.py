@@ -29,13 +29,6 @@ class Parameter(QWidget):
             }
         """)
 
-    # def on_value_ganged(self):
-    #     text = self.value.text()
-    #     state = self.validator.validate(text, 0)[0]
-    #     if  state == QDoubleValidator.Acceptable:
-    #         pass
-    #     else:
-    #         self.value.clear()
 
     def on_value_finished(self):
         text = self.value.text()
@@ -61,7 +54,7 @@ class TestBar(QWidget):
         super().__init__()
         self.main_window = parent
         self.test_params = self.get_test_parameters()
-        self.force = Parameter('Уровень нагружения', 'кН', self.test_params['P_tar'], 1000)
+        self.force = Parameter('Уровень нагружения', 'кН', self.test_params['P_tar'], 10, -10)
         self.freq = Parameter('Частота нагружения', 'Гц', self.test_params['f_tar'], 100)
         self.force_rate = Parameter('Скорость нагружения', 'кН/мин', self.test_params['P_rate_tar'], 100)
         self.length_lim = Parameter('Значение зазора', 'мм', self.test_params['L_lim'], 10)

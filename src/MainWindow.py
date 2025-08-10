@@ -16,6 +16,9 @@ class MainApp(QApplication):
         super().__init__(sys.argv)
 
 
+
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -53,8 +56,8 @@ class MainWindow(QMainWindow):
         widget.setLayout(self.main_layout)
         self.setCentralWidget(widget)
 
-        self.time_offset = 0
-        self.started = False
+        self.timer.start()
+        self.time_offset = self.timer.elapsed()
 
     def update(self):
         data = self.plc()
@@ -63,24 +66,29 @@ class MainWindow(QMainWindow):
             stat = data["Stat"]
             self.settings_bar.update(stat)
             self.status_bar.update_values(data)
-            if self.started:
-                self.datasaver.add_to_matrix(data, self.get_time())
+            self.datasaver.add_to_matrix(data, self.get_time())
+
         else:
             self.setWindowTitle(f'{self.config['name']} - Не удалось установить подключение')
 
 
-
     def stop(self):
-        self.started = False
         self.time_offset = self.get_time()
+        self.datasaver.save_data(get_filepath(self.config['result_path'], 'stop'))
         self.plc.stop()
+        self.reset()
 
     def start(self):
-        self.started = True
-        self.timer.start()
+        self.datasaver.save_data(get_filepath(self.config['result_path'], 'start'))
+        self.reset()
 
     def get_time(self):
         return self.timer.elapsed() + self.time_offset
 
     def closeEvent(self, event):
         self.datasaver.save_data('temp.csv')
+
+
+    def reset(self):
+        self.status_bar.reset()
+        self.datasaver.drop_data()

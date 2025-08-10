@@ -1,8 +1,7 @@
 from time import time
 import pandas as pd
 from src.utils import read_json
-
-
+from pathlib import Path
 
 class DataSaver:
     def __init__(self, parent):
@@ -42,6 +41,7 @@ class DataSaver:
         return self.data
 
     def save_data(self, path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         axis = read_json('axis.json')
         axis = {value: key for key, value in axis.items()}
         df = pd.DataFrame(self.data).rename(columns=axis)
