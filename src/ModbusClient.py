@@ -1,7 +1,7 @@
 import struct
 from pyModbusTCP.client import ModbusClient
 from src.utils import read_json
-
+import time
 
 def get_registers(parameter, config):
     return [i for i in range(config[parameter][1], config[parameter][1] + config[parameter][2])]
@@ -87,7 +87,9 @@ def ask_plc(client, conf, m):
             else:
                 output[var] = None
 
+
     return output
+
 
 
 def write_plc(client, adds, values):
