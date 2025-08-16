@@ -72,21 +72,37 @@ def decode_ieee_754(regs, dtype='int'):
     elif dtype == 'byte':
         return regs
 
+def coils_to_registers(coils, bits_per_register=16):
+    """
+    Преобразует список булевых значений (coils) в список 16-битных регистров.
+    """
+    registers = []
+    for i in range(0, len(coils), bits_per_register):
+        reg_bits = coils[i:i+bits_per_register]
+        reg_val = 0
+        for bit_index, bit in enumerate(reg_bits):
+            if bit:
+                reg_val |= 1 << bit_index
+        registers.append(reg_val)
+    return registers
 
 def ask_plc(client, conf, m):
     output = {}
+
+    all_data = client.read_coils(0, 36*16)
     for var in ['Stat','f', 'T', 'N', 'P', 'L', 'M']:
         dtype, adr, reg = conf[var]
+
         if dtype == 'byte':
-            output[var] = client.read_coils(adr*16, reg*8)
+            output[var] = all_data[adr * 16: adr * 16 + 8]
         else:
-            value = client.read_holding_registers(adr, reg)
+            value = coils_to_registers(all_data[adr * 16: adr * 16 + 32])
             if value:
                 output[var] = decode_ieee_754(value, dtype)
                 output[var] *= m[var]
+
             else:
                 output[var] = None
-
 
     return output
 
