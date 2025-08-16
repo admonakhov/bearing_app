@@ -16,9 +16,6 @@ class MainApp(QApplication):
         super().__init__(sys.argv)
 
 
-
-
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -87,6 +84,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.datasaver.save_data('temp.csv')
+        self.graph_bar.close()
 
 
     def reset(self):

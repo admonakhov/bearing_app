@@ -2,6 +2,7 @@ from time import time
 import pandas as pd
 from src.utils import read_json
 from pathlib import Path
+import numpy as np
 
 class DataSaver:
     def __init__(self, parent):

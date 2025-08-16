@@ -76,41 +76,43 @@ class Graph(QWidget):
         self.setLayout(layout)
 
 
-
-
-
-class GraphBar(QWidget):
-    def __init__(self, parent):
+class GraphWindow(QWidget):
+    def __init__(self, datasaver, config):
         super().__init__()
-        self.datasaver = parent.datasaver
-        self.config = parent.config
+        self.datasaver = datasaver
+        self.config = config
         self.n_vals = int(self.config['values_to_view'])
+        self.filter_frame = int(self.config['graph_filter_frame'])
+
         self.graph = Graph(self.config)
         self.axis = AxisChooser()
+
         layout = QVBoxLayout()
         layout.addWidget(self.graph)
         layout.addWidget(self.axis)
+        self.layout = layout
         self.setLayout(layout)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_graph)
         self.timer.start(100)
-        self.filter_frame = int(self.config['graph_filter_frame'])
-
-
+        self.resize(600, 400)
 
     def update_graph(self):
         x_axis = self.axis.x
         y_axis = self.axis.y
-
+        self.change_title()
         self.graph.graphWidget.setLabel('bottom', self.axis.xlbl)
         self.graph.graphWidget.setLabel('left', self.axis.ylbl)
+
         if self.axis.graph_type == 'rolling':
             x = np.array(self.datasaver.data[x_axis][-self.n_vals:])
             y = np.array(self.datasaver.data[y_axis][-self.n_vals:])
+            self.graph.graphWidget.setDownsampling(auto=False)
         else:
             x = np.array(self.datasaver.data[x_axis])
             y = np.array(self.datasaver.data[y_axis])
+            self.graph.graphWidget.setDownsampling(auto=True)
 
         if self.filter_frame:
             x = moving_average(x, self.filter_frame)
@@ -121,3 +123,32 @@ class GraphBar(QWidget):
             self.graph.graphWidget.update()
         except ValueError:
             print('ValueError')
+
+    def change_title(self):
+        self.setWindowTitle(self.axis.ylbl)
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        self.close()
+
+
+class GraphBar(GraphWindow):
+    def __init__(self, parent):
+        super().__init__(parent.datasaver, parent.config)
+        self.windows = []
+        self.add_btn = QPushButton("+")
+        self.add_btn.clicked.connect(self.add_graph_window)
+        self.layout.addWidget(self.add_btn)
+
+    def add_graph_window(self):
+        win = GraphWindow(self.datasaver, self.config)
+        self.windows.append(win)
+        win.show()
+
+    def change_title(self):
+        pass
+
+    def closeEvent(self, event):
+        for win in self.windows:
+            win.close()
+        event.accept()
