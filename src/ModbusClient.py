@@ -1,7 +1,7 @@
 import struct
 from pyModbusTCP.client import ModbusClient
 from src.utils import read_json
-import time
+from PySide6.QtCore import QElapsedTimer
 
 def get_registers(parameter, config):
     return [i for i in range(config[parameter][1], config[parameter][1] + config[parameter][2])]
@@ -117,9 +117,16 @@ class Client:
         self.client = ModbusClient(host=host_ip, timeout=1)
         self.config = read_TCP_conf(cfg_path)
         self.multiplier = read_json('multiplier.json')
+        self.timer = QElapsedTimer()
+        self.timer.start()
+        self.time_offset = self.timer.elapsed()
+
+    def get_time(self):
+        return self.timer.elapsed() + self.time_offset
 
     def __call__(self):
-        return ask_plc(self.client, self.config, self.multiplier)
+        data = ask_plc(self.client, self.config, self.multiplier)
+        return data
 
     def send_params(self, params, offsets=None):
         params = div_parameters(params, self.multiplier)
@@ -156,6 +163,7 @@ class Client:
     def stop(self):
         self.stop_rotate()
         self.unload()
+        self.time_offset = self.get_time()
         print('Everything stopped!')
 
     def reset(self):

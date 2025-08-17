@@ -2,6 +2,7 @@ import json
 from PySide6.QtWidgets import QFileDialog
 import time
 from pathlib import Path
+import numpy as np
 
 def read_conf(path, dtype=str):
     config = {}
@@ -44,15 +45,15 @@ def moving_average(data, window_size=1):
     :param window_size: размер окна (целое > 0)
     :return: список сглаженных значений
     """
-
-    if len(data) < window_size:
+    data_len = len(data)
+    if data_len < window_size:
         return data
 
     averages = []
-    window_sum = sum(data[:window_size])
+    window_sum = np.sum(data[:window_size])
     averages.append(window_sum / window_size)
 
-    for i in range(window_size, len(data)):
+    for i in range(window_size, data_len):
         window_sum += data[i] - data[i - window_size]
         averages.append(window_sum / window_size)
 
