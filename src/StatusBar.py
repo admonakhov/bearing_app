@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton
 from PySide6.QtGui import QIcon
-
+import numpy as np
 from src.utils import read_conf, write_conf
 
 
@@ -37,8 +37,8 @@ class Parameter(QWidget):
         self.setMaximumHeight(80)
 
     def update_value(self, new_value):
-        new_value = round(new_value, 3)
-        self.value.setText(str(new_value)[:5])
+        new_value = np.round(new_value, 3)
+        self.value.setText(str(new_value))
 
 
 class ResettableParameter(Parameter):
@@ -52,8 +52,8 @@ class ResettableParameter(Parameter):
         self.refresh_button.clicked.connect(self.refresh_value)
 
     def update_value(self, new_value):
-        new_value = round(new_value, 3)
-        self.value.setText(str(new_value-self.offsets[self.name])[:5])
+        new_value = np.round(new_value, 3)
+        self.value.setText(str(new_value-self.offsets[self.name]))
 
     def refresh_value(self):
         self.offsets[self.name] = float(self.value.text()) + self.offsets[self.name]

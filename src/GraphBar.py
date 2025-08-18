@@ -111,7 +111,6 @@ class AxisChooser(QWidget):
             self.graph_type = 'None'
 
 
-
 class Graph(QWidget):
     def __init__(self, config):
         super().__init__()
@@ -129,67 +128,11 @@ class Graph(QWidget):
         self.setLayout(layout)
 
 
-# class GraphWindow(QWidget):
-#     def __init__(self, datasaver, config):
-#         super().__init__()
-#         self.datasaver = datasaver
-#         self.config = config
-#         self.n_vals = int(self.config['values_to_view'])
-#         self.filter_frame = int(self.config['graph_filter_frame'])
-#
-#         self.graph = Graph(self.config)
-#         self.axis = AxisChooser()
-#
-#         layout = QVBoxLayout()
-#         layout.addWidget(self.graph)
-#         layout.addWidget(self.axis)
-#         self._layout = layout
-#         self.setLayout(layout)
-#
-#         self.timer = QTimer(self)
-#         self.timer.timeout.connect(self.update_graph)
-#         self.timer.start(100)
-#         self.resize(600, 400)
-#
-#     def update_graph(self):
-#         x_axis = self.axis.x
-#         y_axis = self.axis.y
-#         self.change_title()
-#         self.graph.graphWidget.setLabel('bottom', self.axis.xlbl)
-#         self.graph.graphWidget.setLabel('left', self.axis.ylbl)
-#
-#         if self.axis.graph_type == 'rolling':
-#             x = np.array(self.datasaver.data[x_axis][-self.n_vals:])
-#             y = np.array(self.datasaver.data[y_axis][-self.n_vals:])
-#             self.graph.graphWidget.setDownsampling(auto=False)
-#         else:
-#             x = np.array(self.datasaver.data[x_axis])
-#             y = np.array(self.datasaver.data[y_axis])
-#             self.graph.graphWidget.setDownsampling(auto=True)
-#
-#         if self.filter_frame:
-#             x = moving_average(x, self.filter_frame)
-#             y = moving_average(y, self.filter_frame)
-#
-#         try:
-#             self.graph.curve.setData(x, y)
-#             self.graph.graphWidget.update()
-#         except ValueError:
-#             print('ValueError')
-#
-#     def change_title(self):
-#         self.setWindowTitle(self.axis.ylbl)
-#
-#     def closeEvent(self, event):
-#         self.timer.stop()
-#         self.close()
-
 class GraphWindow(QWidget):
-    def __init__(self, parent):
+    def __init__(self, datasaver, config):
         super().__init__()
-        self.parent = parent
-        self.datasaver = parent.datasaver
-        self.config = parent.config
+        self.datasaver = datasaver
+        self.config = config
         self.n_vals = int(self.config['values_to_view'])
         self.filter_frame = int(self.config['graph_filter_frame'])
 
@@ -199,61 +142,96 @@ class GraphWindow(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.graph)
         layout.addWidget(self.axis)
-        self._layout = layout
+        self.layout = layout
         self.setLayout(layout)
 
-        self.worker = GraphWorker(self.datasaver, self.axis, self.n_vals, self.filter_frame)
-        self.thread = QThread()
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.data_ready.connect(self.update_plot)
-        self.thread.start()
-
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_graph)
+        self.timer.start(200)
         self.resize(600, 400)
+
+        self.last_index = 0
+        self.full_redraw = True  # первый раз всегда полная отрисовка
+
+        # перерисовываем график при смене осей
+        self.axis.on_selection_changeX = self.wrap_axis_change(self.axis.on_selection_changeX)
+        self.axis.on_selection_changeY = self.wrap_axis_change(self.axis.on_selection_changeY)
+        self.axis.change_type = self.wrap_axis_change(self.axis.change_type)
+
+    def wrap_axis_change(self, func):
+        def wrapper(*args, **kwargs):
+            func(*args, **kwargs)
+            self.full_redraw = True
+            self.last_index = 0
+        return wrapper
+
+    def update_graph(self):
+        data = self.datasaver.get_matrices()
+        if not data or len(data.get("time", [])) == 0:
+            return
+
+        x_key = self.axis.x
+        y_key = self.axis.y
+        self.change_title()
+        self.graph.graphWidget.setLabel('bottom', self.axis.xlbl)
+        self.graph.graphWidget.setLabel('left', self.axis.ylbl)
+
+        x_full = np.asarray(data.get(x_key, []), dtype=np.float32)
+        y_full = np.asarray(data.get(y_key, []), dtype=np.float32)
+        if x_full.size == 0 or y_full.size == 0:
+            return
+
+        n = min(len(x_full), len(y_full))
+        if n <= 1:
+            return
+        x_full = x_full[-n:]
+        y_full = y_full[-n:]
+
+        x = x_full[-self.n_vals:]
+        y = y_full[-self.n_vals:]
+
+        mask = np.isfinite(x) & np.isfinite(y)
+        if not np.any(mask):
+            return
+        x = x[mask]
+        y = y[mask]
+        if x.size <= 1:
+            return
+
+        if self.filter_frame:
+            x = np.asarray(moving_average(x, self.filter_frame), dtype=np.float32)
+            y = np.asarray(moving_average(y, self.filter_frame), dtype=np.float32)
+            m2 = min(len(x), len(y))
+            if m2 <= 1:
+                return
+            x = x[-m2:]
+            y = y[-m2:]
+
+
+        self.graph.graphWidget.setDownsampling(auto=False)
+        self.graph.curve.setData(x, y)
+
+        self.full_redraw = False
+        self.last_index = 0
 
     def change_title(self):
         self.setWindowTitle(self.axis.ylbl)
 
-    def update_plot(self, x, y):
-        """В GUI-потоке"""
-        self.change_title()
-        try:
-            # if self.axis.graph_type == 'rolling':
-            #     self.graph.graphWidget.setDownsampling(auto=False)
-            # else:
-            #     self.graph.graphWidget.setDownsampling(auto=True)
-
-            self.graph.curve.setData(x, y)
-            self.graph.graphWidget.update()
-        except ValueError:
-            print("ValueError")
-
-
-
     def closeEvent(self, event):
-        self.worker.stop()
-        self.thread.quit()
-        self.thread.wait()
-
-        self.parent.windows.remove(self)
-        if len(self.parent.windows) < 3:
-            self.parent.add_btn.setEnabled(True)
-
-        event.accept()
+        self.timer.stop()
+        self.close()
 
 class GraphBar(GraphWindow):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent.datasaver, parent.config)
         self.windows = []
         self.add_btn = QPushButton("+")
         self.add_btn.clicked.connect(self.add_graph_window)
-        self._layout.addWidget(self.add_btn)
+        self.layout.addWidget(self.add_btn)
 
     def add_graph_window(self):
-        win = GraphWindow(self)
+        win = GraphWindow(self.datasaver, self.config)
         self.windows.append(win)
-        if len(self.windows) >= 3:
-            self.add_btn.setEnabled(False)
         win.show()
 
     def change_title(self):
@@ -263,5 +241,3 @@ class GraphBar(GraphWindow):
         for win in self.windows:
             win.close()
         event.accept()
-
-

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget
-from PySide6.QtCore import QObject, QThread, Signal, QElapsedTimer
-
+from PySide6.QtCore import QObject, QThread, Signal, QElapsedTimer, Slot
+from queue import Queue, Empty
 from src.utils import *
 from src.StatusBar import StatusBar
 from src.TestBar import TestBar
@@ -11,35 +11,81 @@ import sys
 
 import time
 
-
 class Worker(QObject):
-    data_ready = Signal(dict, float)  # передаем data + rel_time
+    data_ready = Signal(dict, float)
     error = Signal(str)
 
     def __init__(self, plc, interval_ms):
         super().__init__()
         self.plc = plc
-        self.interval = interval_ms / 1000
+        self.interval = interval_ms / 1000.0
         self._running = True
-        self.init_time = time.perf_counter()  # точка отсчета времени
+        self.init_time = time.perf_counter()
+
+        self._cmd_q: Queue[tuple[str, tuple]] = Queue()
+        self._busy = False
+
+    def enqueue_cmd(self, name: str, *args):
+        self._cmd_q.put((name, args))
+
+    def _process_one_command(self):
+        try:
+            name, args = self._cmd_q.get_nowait()
+        except Empty:
+            return False
+
+        self._busy = True
+        try:
+            if name == 'send_params':
+                params, offsets = args
+                self.plc.send_params(params, offsets)
+            elif name == 'load':
+                self.plc.load()
+            elif name == 'unload':
+                self.plc.unload()
+            elif name == 'rotate':
+                self.plc.rotate()
+            elif name == 'stop_rotate':
+                self.plc.stop_rotate()
+            elif name == 'reset':
+                self.plc.reset()
+            elif name == 'stop_all':
+                self.plc.stop()
+            else:
+                self.error.emit(f'Неизвестная команда: {name}')
+        except Exception as e:
+            self.error.emit(f'Команда {name} завершилась ошибкой: {e}')
+        finally:
+            self._busy = False
+        return True
 
     def run(self):
+        """Основной цикл: сначала выполняем накопившиеся команды, затем опрашиваем ПЛК."""
         while self._running:
             try:
+                processed = 0
+                while self._process_one_command():
+                    processed += 1
+                    if processed >= 100:
+                        break
+
+                if processed > 0 or not self._cmd_q.empty():
+                    time.sleep(0.005)
+
                 start = time.perf_counter()
                 data = self.plc()
-                rel_time = (time.perf_counter() - self.init_time) * 1000
+                rel_time = (time.perf_counter() - self.init_time) * 1000.0
                 self.data_ready.emit(data if data else {}, rel_time)
 
-                sleep_int = time.perf_counter() - start
-                if self.interval > sleep_int:
-                    time.sleep(self.interval - sleep_int)
+                elapsed = time.perf_counter() - start
+                if self.interval > elapsed:
+                    time.sleep(self.interval - elapsed)
+
             except Exception as e:
                 self.error.emit(str(e))
 
     def stop(self):
         self._running = False
-
 
 
 class MainApp(QApplication):
@@ -58,11 +104,6 @@ class MainWindow(QMainWindow):
         # Logic part
         self.datasaver = DataSaver(self)
         self.plc = Client(self.config['host'])
-
-        # self.plc = Client_em()
-        # self.update_timer = QTimer(self)
-        # self.update_timer.timeout.connect(self.update)
-        # self.update_timer.start(int(self.config['ask_int']))
 
         self.timer = QElapsedTimer()
         self.thread = QThread()
@@ -97,6 +138,7 @@ class MainWindow(QMainWindow):
 
         self.timer.start()
         self.time_offset = self.timer.elapsed()
+        self.datasaver.start_session()
 
     def update(self):
         data = self.plc()
@@ -110,16 +152,18 @@ class MainWindow(QMainWindow):
         else:
             self.setWindowTitle(f'{self.config['name']} - Не удалось установить подключение')
 
-
     def stop(self):
         self.time_offset = self.get_time()
         self.datasaver.save_data(get_filepath(self.config['result_path'], 'stop'))
-        self.plc.stop()
+
+        self.worker.enqueue_cmd('stop_all')
         self.reset()
 
     def start(self):
         self.datasaver.save_data(get_filepath(self.config['result_path'], 'start'))
+        self.datasaver.start_session()
         self.reset()
+
 
     def get_time(self):
         return self.timer.elapsed() + self.time_offset

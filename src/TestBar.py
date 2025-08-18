@@ -11,14 +11,12 @@ class Parameter(QWidget):
         self.name = QLabel(f'{name}, {units}')
         self.value = QLineEdit()
         self.validator = QDoubleValidator(bottom=min_val, top=max_val, decimals=3)
-        # self.value.setValidator(self.validator)
         self.value.setText(value)
         self.value.setMaximumWidth(200)
         layout = QVBoxLayout()
         layout.addWidget(self.name)
         layout.addWidget(self.value)
         self.setLayout(layout)
-        # self.value.textChanged.connect(self.on_value_ganged)
         self.value.editingFinished.connect(self.on_value_finished)
 
         self.setStyleSheet("""
@@ -127,11 +125,10 @@ class TestBar(QWidget):
         else:
             self.cycle_lim.set_valid()
 
-
     def apply_load(self):
         params = self()
         self.write_test_parametrs(params)
-        self.main_window.plc.send_params(params, self.main_window.offsets)
+        self.main_window.worker.enqueue_cmd('send_params', params, self.main_window.offsets)
 
         if self.loaded:
             self.stop()
@@ -139,28 +136,32 @@ class TestBar(QWidget):
             self.main_window.start()
             self.loaded = True
             self.loading_btn.setText('Стоп')
-            self.main_window.plc.load()
+
+            # было: self.main_window.plc.load() / emit
+            self.main_window.worker.enqueue_cmd('load')
+
             self.rotation_btn.setEnabled(True)
             self.stop_btn.setEnabled(True)
 
     def rotate(self):
         if self.rotating:
             self.rotating = False
-            self.main_window.plc.stop_rotate()
+            self.main_window.worker.enqueue_cmd('stop_rotate')
             self.rotation_btn.setText('Качение')
             self.loading_btn.setEnabled(True)
-
         else:
             self.rotating = True
-            self.main_window.plc.rotate()
+            self.main_window.worker.enqueue_cmd('rotate')
             self.rotation_btn.setText('Стоп')
             self.loading_btn.setEnabled(False)
 
     def stop(self):
         self.rotating = False
         self.loaded = False
-        self.main_window.plc.stop_rotate()
-        self.main_window.plc.unload()
+
+        self.main_window.worker.enqueue_cmd('stop_rotate')
+        self.main_window.worker.enqueue_cmd('unload')
+
         self.rotation_btn.setText('Качение')
         self.loading_btn.setText('Нагружение')
         self.loading_btn.setEnabled(True)
@@ -168,7 +169,6 @@ class TestBar(QWidget):
 
         self.main_window.stop()
         self.main_window.timer.start()
-
 
     def reset(self):
         if self.main_window.datasaver.data:
@@ -185,7 +185,7 @@ class TestBar(QWidget):
         result = msg_box.exec()
         if result == QMessageBox.Ok:
             self.reset()
-        self.main_window.plc.reset()
+        self.main_window.worker.enqueue_cmd('reset')
 
     def get_test_parameters(self):
         if os.path.isfile('test_parameters.param'):
