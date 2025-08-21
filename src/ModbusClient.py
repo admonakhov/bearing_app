@@ -47,7 +47,7 @@ def float_to_ieee_754_regs(value):
 def convert_ieee_754_int(regs):
     """Конвертирует 2 регистра Modbus в int (IEEE 754)"""
     if regs and len(regs) == 2:
-        return 65536 * regs[1] + regs[0]
+        return int(65536 * regs[1] + regs[0])
     return None
 
 def int_to_ieee_754_regs(value):
@@ -87,10 +87,10 @@ def coils_to_registers(coils, bits_per_register=16):
     return registers
 
 def ask_plc(client, conf, m):
-    output = {}
+    output = {'f':0.0}
 
     all_data = client.read_coils(0, 36*16)
-    for var in ['Stat','f', 'T', 'N', 'P', 'L', 'M']:
+    for var in ['Stat', 'T', 'N', 'P', 'L', 'M']:
         dtype, adr, reg = conf[var]
 
         if dtype == 'byte':
@@ -100,6 +100,8 @@ def ask_plc(client, conf, m):
             if value:
                 output[var] = decode_ieee_754(value, dtype)
                 output[var] *= m[var]
+                if dtype == 'int':
+                    output[var] = int(output[var])
 
             else:
                 output[var] = None
@@ -144,12 +146,10 @@ class Client:
     def load(self):
         adr = self.config['Cmd'][1]*16 + 0
         self.client.write_single_coil(adr, True)
-        print('Loading')
 
     def unload(self):
         adr = self.config['Cmd'][1]*16 + 0
         self.client.write_single_coil(adr, False)
-        print('Unloading')
 
     def rotate(self):
         adr = self.config['Cmd'][1]*16 + 1
@@ -158,19 +158,12 @@ class Client:
     def stop_rotate(self):
         adr = self.config['Cmd'][1]*16 + 1
         self.client.write_single_coil(adr, False)
-        print('Stop Rotation')
 
     def stop(self):
         self.stop_rotate()
         self.unload()
         self.time_offset = self.get_time()
-        print('Everything stopped!')
 
     def reset(self):
         adr = self.config['Cmd'][1]*16 + 2
         self.client.write_single_coil(adr, True)
-
-    def cont(self):
-        self.load()
-        self.rotate()
-        print('Continuing of test')

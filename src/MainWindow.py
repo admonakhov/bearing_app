@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget
-from PySide6.QtCore import QObject, QThread, Signal, QElapsedTimer, Slot
+from PySide6.QtCore import QObject, QThread, Signal, QElapsedTimer
 from queue import Queue, Empty
 from src.utils import *
 from src.StatusBar import StatusBar
@@ -8,8 +8,8 @@ from src.GraphBar import GraphBar
 from src.ModbusClient import Client
 from src.DataSaver import DataSaver
 import sys
-
 import time
+
 
 class Worker(QObject):
     data_ready = Signal(dict, float)
@@ -21,7 +21,6 @@ class Worker(QObject):
         self.interval = interval_ms / 1000.0
         self._running = True
         self.init_time = time.perf_counter()
-
         self._cmd_q: Queue[tuple[str, tuple]] = Queue()
         self._busy = False
 
@@ -74,7 +73,7 @@ class Worker(QObject):
 
                 start = time.perf_counter()
                 data = self.plc()
-                rel_time = (time.perf_counter() - self.init_time) * 1000.0
+                rel_time = round((time.perf_counter() - self.init_time) * 1000.0,2)
                 self.data_ready.emit(data if data else {}, rel_time)
 
                 elapsed = time.perf_counter() - start
@@ -122,6 +121,8 @@ class MainWindow(QMainWindow):
         self.settings_bar = TestBar(self)
         self.graph_bar = GraphBar(self)
 
+        self.status_bar.offsets_changed.connect(self._resend_setpoints)
+
         # Layout cfg
         self.main_layout = QVBoxLayout()
         self.test_layout = QHBoxLayout()
@@ -140,24 +141,21 @@ class MainWindow(QMainWindow):
         self.time_offset = self.timer.elapsed()
         self.datasaver.start_session()
 
-    def update(self):
-        data = self.plc()
+        self._freq_window_size = 100
+        self._time_window = []
+        self._cycle_window = []
+        self._last_freq = None
+        self.elapsed_time = 0
 
-        if data:
-            stat = data["Stat"]
-            self.settings_bar.update(stat)
-            self.status_bar.update_values(data)
-            self.datasaver.add_to_matrix(data, self.get_time())
-
-        else:
-            self.setWindowTitle(f'{self.config['name']} - Не удалось установить подключение')
+    def _resend_setpoints(self):
+        params = self.settings_bar()
+        self.worker.enqueue_cmd('send_params', params, self.offsets)
 
     def stop(self):
         self.time_offset = self.get_time()
         self.datasaver.save_data(get_filepath(self.config['result_path'], 'stop'))
 
         self.worker.enqueue_cmd('stop_all')
-        self.reset()
 
     def start(self):
         self.datasaver.save_data(get_filepath(self.config['result_path'], 'start'))
@@ -179,16 +177,56 @@ class MainWindow(QMainWindow):
 
     def reset(self):
         self.status_bar.reset()
-        self.datasaver.drop_data()
+        self.worker.enqueue_cmd('reset')
 
     def on_data_ready(self, data, rel_time):
         if data:
+
+            f_val = self.update_frequency_regression(data, rel_time)
+            if f_val is not None:
+                data['f'] = f_val
+
             stat = data["Stat"]
             self.settings_bar.update(stat)
             self.status_bar.update_values(data)
             self.datasaver.add_to_matrix(data, round(rel_time, 1))
+            if (self.elapsed_time // 10) == 1:
+                self.elapsed_time = 0
+                if stat[0] and self.settings_bar.loaded == False:
+                    self.settings_bar.loaded = True
+                    self.settings_bar.loading_btn.setText("Стоп")
+                    self.settings_bar.rotation_btn.setEnabled(True)
+                elif stat[0] == False and self.settings_bar.loaded == True:
+                    self.settings_bar.stop()
+
+            else:
+                self.elapsed_time += 1
+
         else:
             self.setWindowTitle(f"{self.config['name']} - Нет данных")
 
     def on_error(self, msg):
         self.setWindowTitle(f"{self.config['name']} - Ошибка PLC: {msg}")
+
+
+    def update_frequency_regression(self, data, rel_time):
+        """Обновляет частоту f по линейной регрессии на последних N точках."""
+        N = data.get("N")
+        if N is None:
+            return None
+
+
+        self._time_window.append(rel_time / 1000.0)  # в сек
+        self._cycle_window.append(N)
+
+
+        if len(self._time_window) > self._freq_window_size:
+            self._time_window.pop(0)
+            self._cycle_window.pop(0)
+
+        if len(self._time_window) >= 2:
+            # линейная регрессия: цикл от времени
+            coeffs = np.polyfit(self._time_window, self._cycle_window, 1)
+            slope = coeffs[0]  # dN/dt ~ частота
+            self._last_freq = slope
+        return self._last_freq

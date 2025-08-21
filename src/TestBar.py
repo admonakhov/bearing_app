@@ -1,3 +1,5 @@
+import time
+
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QMessageBox
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtGui import QIcon
@@ -52,9 +54,9 @@ class TestBar(QWidget):
         super().__init__()
         self.main_window = parent
         self.test_params = self.get_test_parameters()
-        self.force = Parameter('Уровень нагружения', 'кН', self.test_params['P_tar'], 10, -10)
+        self.force = Parameter('Уровень нагружения', 'кН', self.test_params['P_tar'], 100, -100)
         self.freq = Parameter('Частота нагружения', 'Гц', self.test_params['f_tar'], 100)
-        self.force_rate = Parameter('Скорость нагружения', 'кН/мин', self.test_params['P_rate_tar'], 100)
+        self.force_rate = Parameter('Скорость нагружения', 'c', self.test_params['P_rate_tar'], 100)
         self.length_lim = Parameter('Значение зазора', 'мм', self.test_params['L_lim'], 10)
         self.m_max = Parameter('Верхний предел по моменту', 'Нм', self.test_params['M_max'], 50, -50)
         self.temp_lim = Parameter('Температура', '°С', self.test_params['T_max'], 1000)
@@ -67,16 +69,14 @@ class TestBar(QWidget):
         self.rotation_btn.clicked.connect(self.rotate)
         self.rotation_btn.setEnabled(False)
         self.stop_btn = QPushButton('Сброс')
-        self.stop_btn.clicked.connect(self.warning_dialog)
+        self.stop_btn.clicked.connect(self.main_window.reset)
         self.save_button = QPushButton()
         self.save_button.setIcon(QIcon.fromTheme("document-save"))
         self.save_button.clicked.connect(self.save_file)
 
-
         self.save_button.setMaximumWidth(50)
         self.rotation_btn.setMaximumWidth(200)
         self.loading_btn.setMaximumWidth(200)
-
 
         data_layout = QHBoxLayout()
         container = QWidget()
@@ -86,7 +86,6 @@ class TestBar(QWidget):
 
         data_layout.addWidget(self.stop_btn, 2)
         data_layout.addWidget(self.save_button, 1)
-
 
         layout = QVBoxLayout()
         layout.addWidget(self.force)
@@ -137,11 +136,11 @@ class TestBar(QWidget):
             self.loaded = True
             self.loading_btn.setText('Стоп')
 
-            # было: self.main_window.plc.load() / emit
             self.main_window.worker.enqueue_cmd('load')
 
             self.rotation_btn.setEnabled(True)
             self.stop_btn.setEnabled(True)
+
 
     def rotate(self):
         if self.rotating:
@@ -154,6 +153,7 @@ class TestBar(QWidget):
             self.main_window.worker.enqueue_cmd('rotate')
             self.rotation_btn.setText('Стоп')
             self.loading_btn.setEnabled(False)
+
 
     def stop(self):
         self.rotating = False

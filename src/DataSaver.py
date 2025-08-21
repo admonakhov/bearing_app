@@ -139,7 +139,10 @@ class DataSaverWorker(QObject):
                 v = np.nan
             else:
                 off = self.offsets.get(key, 0.0)
-                v = float(np.round(val - off, 3))
+                if key == 'N':
+                    v = int(val - off)
+                else:
+                    v = float(np.round(val - off, 3))
             self.data[key].append(v)
             row[key] = v
 

@@ -1,15 +1,15 @@
 from PySide6.QtWidgets import QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton
 from PySide6.QtGui import QIcon
 import numpy as np
-from src.utils import read_conf, write_conf
-
+from src.utils import write_conf
+from PySide6.QtCore import Signal
 
 class Parameter(QWidget):
-    def __init__(self, name, units):
+    def __init__(self, name, units, dec=3):
         super().__init__()
         frame = QFrame()
-        frame.setFrameShape(QFrame.Box)  # Рамка по контуру
-        frame.setLineWidth(2)  # Толщина рамки
+        frame.setFrameShape(QFrame.Box)
+        frame.setLineWidth(2)
         frame.setMidLineWidth(0)
         frame.setStyleSheet("background-color: white;")
 
@@ -17,6 +17,7 @@ class Parameter(QWidget):
         self.label = QLabel(name)
         self.value = QLineEdit()
         self.units = QLabel(units)
+        self.dec = dec
         self.value.setReadOnly(True)
         self.label.setMaximumWidth(100)
         self.value.setMaximumWidth(150)
@@ -36,14 +37,24 @@ class Parameter(QWidget):
         """)
         self.setMaximumHeight(80)
 
+    def round(self, val):
+        val = np.round(val, self.dec)
+        if self.dec:
+            _int, _dec = str(val).split('.')
+            return '.'.join([_int, _dec[:self.dec]])
+        else:
+            return str(val)
+
     def update_value(self, new_value):
-        new_value = np.round(new_value, 3)
-        self.value.setText(str(new_value))
+
+        self.value.setText(self.round(new_value))
 
 
 class ResettableParameter(Parameter):
-    def __init__(self, name, units, offsets):
-        super().__init__(name, units)
+    offset_changed = Signal(str, float)
+
+    def __init__(self, name, units, offsets, dec=3):
+        super().__init__(name, units, dec)
         self.offsets = offsets
         self.refresh_button = QPushButton()
         refresh_icon = QIcon.fromTheme("view-refresh")
@@ -52,17 +63,17 @@ class ResettableParameter(Parameter):
         self.refresh_button.clicked.connect(self.refresh_value)
 
     def update_value(self, new_value):
-        new_value = np.round(new_value, 3)
-        self.value.setText(str(new_value-self.offsets[self.name]))
+        self.value.setText(self.round(new_value-self.offsets[self.name]))
 
     def refresh_value(self):
         self.offsets[self.name] = float(self.value.text()) + self.offsets[self.name]
         write_conf('offsets.param', self.offsets)
+        self.offset_changed.emit(self.name, self.offsets[self.name])
 
 
 class MaxMinParameter(ResettableParameter):
-    def __init__(self, name, units, offsets):
-        super().__init__(name, units, offsets)
+    def __init__(self, name, units, offsets, dec=3):
+        super().__init__(name, units, offsets, dec)
         min_label = QLabel('Min:')
         max_label = QLabel('Max:')
         max_min_widget = QWidget()
@@ -75,8 +86,9 @@ class MaxMinParameter(ResettableParameter):
         min_layout.addWidget(self.min_value)
         max_layout.addWidget(max_label)
         max_layout.addWidget(self.max_value)
-        mm_layout.addLayout(min_layout)
         mm_layout.addLayout(max_layout)
+        mm_layout.addLayout(min_layout)
+
         max_min_widget.setLayout(mm_layout)
         max_min_widget.setMaximumWidth(100)
 
@@ -86,15 +98,13 @@ class MaxMinParameter(ResettableParameter):
 
 
     def update_value(self, new_value):
-        new_value = round(new_value, 3)
         if new_value > self.max_val:
             self.max_val = new_value
+            self.max_value.setText(self.round(self.max_val))
         if new_value  < self.min_val:
             self.min_val = new_value
-
-        self.value.setText(str(new_value-self.offsets[self.name])[:5])
-        self.max_value.setText(str(self.max_val-self.offsets[self.name])[:5])
-        self.min_value.setText(str(self.min_val - self.offsets[self.name])[:5])
+            self.min_value.setText(self.round(self.min_val))
+        self.value.setText(self.round(new_value))
 
     def reset_values(self):
         self.max_val = 0
@@ -102,16 +112,16 @@ class MaxMinParameter(ResettableParameter):
 
 
 class StatusBar(QWidget):
+    offsets_changed = Signal()
     def __init__(self, parent):
         super().__init__()
+        self.main_window = parent
         self.offsets = parent.offsets
-        self.cycles = Parameter('N', 'циклов')
-        self.force = ResettableParameter('P', 'кН', self.offsets)
-        self.momentum = MaxMinParameter('M', 'Н∙м', self.offsets)
-        self.length = ResettableParameter('L', 'мм', self.offsets)
+        self.cycles = Parameter('N', 'циклов', dec=0)
+        self.force = ResettableParameter('P', 'кН', self.offsets, dec=2)
+        self.momentum = MaxMinParameter('M', 'Н∙м', self.offsets, dec=2)
+        self.length = ResettableParameter('L', 'мм', self.offsets, dec=3)
         self.temp = Parameter('T', '°С')
-
-        # self.angle = Parameter('α', '°')
         self.freq = Parameter('f', 'Гц')
         layout = QHBoxLayout()
 
@@ -123,6 +133,8 @@ class StatusBar(QWidget):
         layout.addWidget(self.freq)
         self.setMaximumHeight(100)
         self.setLayout(layout)
+        self.momentum.offset_changed.connect(lambda *_: self.offsets_changed.emit())
+        self.length.offset_changed.connect(lambda *_: self.offsets_changed.emit())
 
     def update_values(self, data):
         self.cycles.update_value(data['N'])
