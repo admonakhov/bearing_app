@@ -95,20 +95,26 @@ class MaxMinParameter(ResettableParameter):
         self.layout.addWidget(max_min_widget)
         self.max_val = 0
         self.min_val = 0
-
+        self.max_val = float('-inf')
+        self.min_val = float('inf')
 
     def update_value(self, new_value):
+        new_value = round(new_value, 3)
         if new_value > self.max_val:
             self.max_val = new_value
-            self.max_value.setText(self.round(self.max_val))
-        if new_value  < self.min_val:
+        if new_value < self.min_val:
             self.min_val = new_value
-            self.min_value.setText(self.round(self.min_val))
-        self.value.setText(self.round(new_value))
+
+        self.value.setText(str(new_value - self.offsets[self.name])[:5])
+        self.max_value.setText(str(self.max_val - self.offsets[self.name])[:5])
+        self.min_value.setText(str(self.min_val - self.offsets[self.name])[:5])
 
     def reset_values(self):
-        self.max_val = 0
-        self.min_val = 0
+        self.max_val = float('-inf')
+        self.min_val = float('inf')
+        self.value.clear()
+        self.max_value.clear()
+        self.min_value.clear()
 
 
 class StatusBar(QWidget):
