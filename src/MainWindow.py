@@ -27,6 +27,9 @@ class Worker(QObject):
     def enqueue_cmd(self, name: str, *args):
         self._cmd_q.put((name, args))
 
+    def reset_time(self):
+        self.init_time = time.perf_counter()
+
     def _process_one_command(self):
         try:
             name, args = self._cmd_q.get_nowait()
@@ -50,6 +53,8 @@ class Worker(QObject):
                 self.plc.reset()
             elif name == 'stop_all':
                 self.plc.stop()
+            elif name == 'reset_time':
+                self.reset_time()
             else:
                 self.error.emit(f'Неизвестная команда: {name}')
         except Exception as e:
@@ -154,14 +159,17 @@ class MainWindow(QMainWindow):
     def stop(self):
         self.time_offset = self.get_time()
         self.datasaver.save_data(get_filepath(self.config['result_path'], 'stop'))
-
         self.worker.enqueue_cmd('stop_all')
 
     def start(self):
+        self.worker.enqueue_cmd('reset_time')
         self.datasaver.save_data(get_filepath(self.config['result_path'], 'start'))
         self.datasaver.start_session()
         self.reset()
 
+    def reset(self):
+        self.status_bar.reset()
+        self.worker.enqueue_cmd('reset')
 
     def get_time(self):
         return self.timer.elapsed() + self.time_offset
@@ -175,9 +183,7 @@ class MainWindow(QMainWindow):
         self.graph_bar.close()
         super().closeEvent(event)
 
-    def reset(self):
-        self.status_bar.reset()
-        self.worker.enqueue_cmd('reset')
+
 
     def on_data_ready(self, data, rel_time):
         if data:
@@ -187,6 +193,7 @@ class MainWindow(QMainWindow):
                 data['f'] = f_val
 
             stat = data["Stat"]
+            data = self.datasaver.apply_filters(data)
             self.settings_bar.update(stat)
             self.status_bar.update_values(data)
             self.datasaver.add_to_matrix(data, round(rel_time, 1))
@@ -208,13 +215,17 @@ class MainWindow(QMainWindow):
     def on_error(self, msg):
         self.setWindowTitle(f"{self.config['name']} - Ошибка PLC: {msg}")
 
+    def clean_data(self):
+        self.worker.reset_time()
+        self.datasaver.drop_data()
+        self.datasaver.start_session()
+
 
     def update_frequency_regression(self, data, rel_time):
         """Обновляет частоту f по линейной регрессии на последних N точках."""
         N = data.get("N")
         if N is None:
             return None
-
 
         self._time_window.append(rel_time / 1000.0)  # в сек
         self._cycle_window.append(N)
@@ -226,7 +237,7 @@ class MainWindow(QMainWindow):
 
         if len(self._time_window) >= 2:
             # линейная регрессия: цикл от времени
-            coeffs = np.polyfit(self._time_window, self._cycle_window, 1)
-            slope = coeffs[0]  # dN/dt ~ частота
+            coef = np.polyfit(self._time_window, self._cycle_window, 1)
+            slope = coef[0]  # dN/dt ~ частота
             self._last_freq = slope
         return self._last_freq

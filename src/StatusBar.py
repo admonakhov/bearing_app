@@ -4,6 +4,16 @@ import numpy as np
 from src.utils import write_conf
 from PySide6.QtCore import Signal
 
+
+def round_str(val, dec=None):
+    val = round(val, dec)
+    if dec:
+        _int, _dec = str(val).split('.')
+        return '.'.join([_int, _dec])
+    else:
+        return str(val)
+
+
 class Parameter(QWidget):
     def __init__(self, name, units, dec=3):
         super().__init__()
@@ -37,17 +47,23 @@ class Parameter(QWidget):
         """)
         self.setMaximumHeight(80)
 
-    def round(self, val):
-        val = np.round(val, self.dec)
-        if self.dec:
-            _int, _dec = str(val).split('.')
-            return '.'.join([_int, _dec[:self.dec]])
-        else:
-            return str(val)
 
     def update_value(self, new_value):
 
-        self.value.setText(self.round(new_value))
+        self.value.setText(round_str(new_value, self.dec))
+
+class IncreasedParameter(Parameter):
+    def __init__(self, name, units, dec):
+        super().__init__(name, units, dec)
+        self.max_val = 0
+
+    def update_value(self, new_value):
+        if new_value > self.max_val:
+            self.max_val = new_value
+            self.value.setText(round_str(new_value, self.dec))
+
+    def reset(self):
+        self.max_val = 0
 
 
 class ResettableParameter(Parameter):
@@ -63,7 +79,7 @@ class ResettableParameter(Parameter):
         self.refresh_button.clicked.connect(self.refresh_value)
 
     def update_value(self, new_value):
-        self.value.setText(self.round(new_value-self.offsets[self.name]))
+        self.value.setText(round_str(new_value-self.offsets[self.name], self.dec))
 
     def refresh_value(self):
         self.offsets[self.name] = float(self.value.text()) + self.offsets[self.name]
@@ -123,12 +139,12 @@ class StatusBar(QWidget):
         super().__init__()
         self.main_window = parent
         self.offsets = parent.offsets
-        self.cycles = Parameter('N', 'циклов', dec=0)
+        self.cycles = IncreasedParameter('N', 'циклов', dec=0)
         self.force = ResettableParameter('P', 'кН', self.offsets, dec=2)
         self.momentum = MaxMinParameter('M', 'Н∙м', self.offsets, dec=2)
         self.length = ResettableParameter('L', 'мм', self.offsets, dec=3)
-        self.temp = Parameter('T', '°С')
-        self.freq = Parameter('f', 'Гц')
+        self.temp = Parameter('T', '°С', dec=1)
+        self.freq = Parameter('f', 'Гц', dec=1)
         layout = QHBoxLayout()
 
         layout.addWidget(self.cycles)
@@ -152,4 +168,5 @@ class StatusBar(QWidget):
 
     def reset(self):
         self.momentum.reset_values()
+        self.cycles.reset()
 

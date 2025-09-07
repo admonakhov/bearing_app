@@ -10,6 +10,39 @@ import shutil
 CHUNK_SIZE = 10_000
 MAX_POINTS_RAM = 100_000
 
+
+class RollingMean:
+    """O(1) скользящее среднее по фиксированному окну."""
+    def __init__(self, window: int):
+        self.window = max(int(window), 0)
+        self.buf = deque(maxlen=self.window if self.window > 0 else 1)
+        self.sum = 0.0
+
+    def reset(self):
+        self.buf.clear()
+        self.sum = 0.0
+
+    def update(self, x: float) -> float:
+        if self.window <= 0:
+            return x
+        if len(self.buf) == self.buf.maxlen:
+            self.sum -= self.buf[0]
+        self.buf.append(x)
+        self.sum += x
+        return self.sum / len(self.buf)
+
+def round_dataframe(df: pd.DataFrame, decimals: dict={'Время, с':2, 'Наработка, цикл':0, 'Уровень нагружения, кН':2,
+                                                      'Крутящий момент, Нм':2, 'Температура, °С':2,
+                                                      'Частота нагружения, Гц':2, 'Значение зазора, мм':3}) -> pd.DataFrame:
+    """
+    Округляет все числовые значения в DataFrame до указанного числа знаков.
+    Строки и другие типы остаются без изменений.
+    """
+    for numeric_col in decimals.keys():
+
+        df[numeric_col] = df[numeric_col].round(decimals[numeric_col])
+    return df
+
 class ChunkedLogger:
     """
     Пишет чанки по CHUNK_SIZE строк в отдельные файлы в папке сессии.
@@ -48,6 +81,7 @@ class ChunkedLogger:
         df = pd.DataFrame(self.rows_buffer)
         if self.axis_rename:
             df = df.rename(columns=self.axis_rename)
+        df = round_dataframe(df)
         df.to_csv(chunk_path, index=False, sep="\t", decimal=",")
         self.chunks.append(chunk_path)
         self.rows_buffer.clear()
@@ -133,7 +167,7 @@ class DataSaverWorker(QObject):
 
         row = {'time': t}
 
-        for key in ['f', 'T', 'N', 'P', 'L', 'M']:
+        for key in ['N','P', 'M', 'L', 'T', 'f']:
             val = input_dict.get(key, None)
             if val is None:
                 v = np.nan
@@ -142,7 +176,7 @@ class DataSaverWorker(QObject):
                 if key == 'N':
                     v = int(val - off)
                 else:
-                    v = float(np.round(val - off, 3))
+                    v = float(val - off)
             self.data[key].append(v)
             row[key] = v
 
@@ -193,6 +227,13 @@ class DataSaver(QObject):
         self.main_window = parent
         self.config = parent.config
         self.offsets = parent.offsets
+        self._filter_frame = int(self.config.get('filter_frame',
+                                self.config.get('graph_filter_frame', 0)))
+        channels_str = str(self.config.get('filter_channels',
+                                self.config.get('graph_filter_channels', ''))).strip()
+        self._filter_channels = [c.strip() for c in channels_str.split(',') if c.strip()]
+        # банк фильтров по каналам
+        self._filters = {ch: RollingMean(self._filter_frame) for ch in self._filter_channels}
 
         max_points_ram = int(self.config.get('datasaver_max_points', MAX_POINTS_RAM))
 
@@ -201,6 +242,27 @@ class DataSaver(QObject):
         self.worker.moveToThread(self.thread)
         self.data_in.connect(self.worker.add_data)
         self.thread.start()
+
+    def apply_filters(self, input_dict: dict) -> dict:
+        """
+        Вернёт копию input_dict с применённым скользящим средним
+        для каналов из filter_channels. Не трогает None/NaN.
+        """
+        if not self._filter_channels or self._filter_frame <= 0:
+            return dict(input_dict)
+        out = dict(input_dict)
+        for ch in self._filter_channels:
+            if ch in out:
+                v = out[ch]
+                # пропуски данных: сбрасываем фильтр, значение оставляем как есть
+                if v is None or (isinstance(v, float) and np.isnan(v)):
+                    if ch in self._filters:
+                        self._filters[ch].reset()
+                else:
+                    # float -> фильтр -> округление до 3 знаков для консистентности
+                    filt = self._filters[ch]
+                    out[ch] = float(np.round(filt.update(float(v)), 3))
+        return out
 
     def add_to_matrix(self, input_dict, elapsed_time_ms):
         self.data_in.emit(input_dict, elapsed_time_ms)
@@ -213,6 +275,8 @@ class DataSaver(QObject):
         """Начать новую сессию записи (новая папка, чистое оперативное окно)."""
         self.worker.start_new_session()
         self.main_window.time_offset = 0
+        for f in self._filters.values():
+            f.reset()
 
     def save_data(self, path):
         """
@@ -227,6 +291,8 @@ class DataSaver(QObject):
         """Сбросить только оперативное окно (график), без изменения чанков."""
         self.worker.clear()
         self.main_window.time_offset = 0
+        for f in self._filters.values():
+            f.reset()
 
     def close(self):
         self.worker.stop()

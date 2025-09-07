@@ -1,5 +1,3 @@
-import time
-
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QMessageBox
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtGui import QIcon
@@ -68,23 +66,26 @@ class TestBar(QWidget):
         self.rotation_btn = QPushButton('Качение')
         self.rotation_btn.clicked.connect(self.rotate)
         self.rotation_btn.setEnabled(False)
-        self.stop_btn = QPushButton('Сброс')
+        self.stop_btn = QPushButton('Сброс лимитов')
         self.stop_btn.clicked.connect(self.main_window.reset)
+        self.clean_data = QPushButton('Очистка буфера')
+        self.clean_data.clicked.connect(self.main_window.clean_data)
         self.save_button = QPushButton()
         self.save_button.setIcon(QIcon.fromTheme("document-save"))
         self.save_button.clicked.connect(self.save_file)
 
         self.save_button.setMaximumWidth(50)
-        self.rotation_btn.setMaximumWidth(200)
-        self.loading_btn.setMaximumWidth(200)
+        self.rotation_btn.setMaximumWidth(300)
+        self.loading_btn.setMaximumWidth(300)
 
         data_layout = QHBoxLayout()
         container = QWidget()
         container.setLayout(data_layout)
 
-        container.setMaximumWidth(200)
+        container.setMaximumWidth(300)
 
         data_layout.addWidget(self.stop_btn, 2)
+        data_layout.addWidget(self.clean_data, 2)
         data_layout.addWidget(self.save_button, 1)
 
         layout = QVBoxLayout()

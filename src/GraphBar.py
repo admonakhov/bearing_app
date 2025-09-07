@@ -134,7 +134,6 @@ class GraphWindow(QWidget):
         self.datasaver = datasaver
         self.config = config
         self.n_vals = int(self.config['values_to_view'])
-        self.filter_frame = int(self.config['graph_filter_frame'])
 
         self.graph = Graph(self.config)
         self.axis = AxisChooser()
@@ -197,16 +196,6 @@ class GraphWindow(QWidget):
         y = y[mask]
         if x.size <= 1:
             return
-
-        if self.filter_frame:
-            x = np.asarray(moving_average(x, self.filter_frame), dtype=np.float32)
-            y = np.asarray(moving_average(y, self.filter_frame), dtype=np.float32)
-            m2 = min(len(x), len(y))
-            if m2 <= 1:
-                return
-            x = x[-m2:]
-            y = y[-m2:]
-
 
         self.graph.graphWidget.setDownsampling(auto=False)
         self.graph.curve.setData(x, y)
