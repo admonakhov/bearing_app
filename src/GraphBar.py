@@ -2,28 +2,11 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLab
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer, QThread, Signal, QObject
 import numpy as np
-from src.utils import read_json, moving_average
+from src.utils import read_json
 
-
-def adaptive_downsample(x, y, max_points: int = 5000):
-    """
-    Адаптивный даунсэмплинг: уменьшает количество точек до max_points.
-
-    :param x: numpy-массив X
-    :param y: numpy-массив Y
-    :param max_points: максимально допустимое количество точек
-    :return: (x_ds, y_ds) - уменьшенные массивы
-    """
-    n_points = len(x)
-    if n_points <= max_points:
-        return x, y
-
-    step = int(np.ceil(n_points / max_points))
-    return np.array(x[::step]), np.array(y[::step])
 
 class GraphWorker(QObject):
     data_ready = Signal(object, object)  # x, y
-
     def __init__(self, datasaver, axis, n_vals, filter_frame):
         super().__init__()
         self.datasaver = datasaver
@@ -37,22 +20,9 @@ class GraphWorker(QObject):
         while self._running:
             x_axis = self.axis.x
             y_axis = self.axis.y
-
             x = self.datasaver.data[x_axis]
             y = self.datasaver.data[y_axis]
-
-            if self.filter_frame:
-                x = moving_average(x, self.filter_frame)
-                y = moving_average(y, self.filter_frame)
-
-            if self.axis.graph_type == 'rolling':
-                x = x[-self.n_vals:]
-                y = y[-self.n_vals:]
-            else:
-                x, y = adaptive_downsample(x, y)
-
             self.data_ready.emit(x, y)
-
             QThread.msleep(100)
 
     def stop(self):
@@ -123,7 +93,6 @@ class Graph(QWidget):
         self.graphWidget.setBackground('w')
         pen = pg.mkPen(config['pen_color'], width=int(config['pen_width']))
         self.curve = self.graphWidget.plot([0], [0] , pen=pen)
-        # self.graphWidget.setDownsampling(auto=True)
         self.graphWidget.update()
         self.setLayout(layout)
 
@@ -150,9 +119,8 @@ class GraphWindow(QWidget):
         self.resize(600, 400)
 
         self.last_index = 0
-        self.full_redraw = True  # первый раз всегда полная отрисовка
+        self.full_redraw = True
 
-        # перерисовываем график при смене осей
         self.axis.on_selection_changeX = self.wrap_axis_change(self.axis.on_selection_changeX)
         self.axis.on_selection_changeY = self.wrap_axis_change(self.axis.on_selection_changeY)
         self.axis.change_type = self.wrap_axis_change(self.axis.change_type)

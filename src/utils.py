@@ -3,6 +3,8 @@ from PySide6.QtWidgets import QFileDialog
 import time
 from pathlib import Path
 import numpy as np
+from collections import deque
+
 
 def read_conf(path, dtype=str):
     config = {}
@@ -15,16 +17,18 @@ def read_conf(path, dtype=str):
             config[name] = atr
     return config
 
+
 def write_conf(path, config:dict):
     with open(path, 'w') as _cfg:
         for key in config.keys():
             _cfg.write(f'{key} {config[key]}\n')
 
 
-def read_json(path, dtype=str):
+def read_json(path):
     with open(path, 'r', encoding='utf-8') as f:
         data = json.load(f)
         return data
+
 
 def get_file_path():
     file_path, _ = QFileDialog.getSaveFileName(
@@ -37,29 +41,6 @@ def get_file_path():
     return file_path
 
 
-def moving_average(data, window_size=1):
-    """
-    Скользящее среднее для массива data с окном window_size.
-
-    :param data: список или массив чисел
-    :param window_size: размер окна (целое > 0)
-    :return: список сглаженных значений
-    """
-    data_len = len(data)
-    if data_len < window_size:
-        return data
-
-    averages = []
-    window_sum = np.sum(data[:window_size])
-    averages.append(window_sum / window_size)
-
-    for i in range(window_size, data_len):
-        window_sum += data[i] - data[i - window_size]
-        averages.append(window_sum / window_size)
-
-    return averages
-
-
 def get_filepath(workdir, action=''):
     date_str = time.strftime("%d.%m.%Y")
     time_str = time.strftime("%H.%M.%S")
@@ -68,3 +49,24 @@ def get_filepath(workdir, action=''):
     else:
         file_path = Path(f"{workdir}/{date_str}/{time_str}.csv")
     return file_path
+
+
+class RollingMean:
+    """O(1) скользящее среднее по фиксированному окну."""
+    def __init__(self, window: int):
+        self.window = max(int(window), 0)
+        self.buf = deque(maxlen=self.window if self.window > 0 else 1)
+        self.sum = 0.0
+
+    def reset(self):
+        self.buf.clear()
+        self.sum = 0.0
+
+    def update(self, x: float) -> float:
+        if self.window <= 0:
+            return x
+        if len(self.buf) == self.buf.maxlen:
+            self.sum -= self.buf[0]
+        self.buf.append(x)
+        self.sum += x
+        return self.sum / len(self.buf)

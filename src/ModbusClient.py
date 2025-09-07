@@ -12,11 +12,6 @@ def div_parameters(data, multiplier):
         data[key] = float(data[key].replace(',', '.')) /  multiplier[key[0]]
     return data
 
-def mult_data(data, multiplier):
-    for key in data.keys():
-        data[key] = float(data[key].replace(',', '.')) *  multiplier[key[0]]
-    return data
-
 
 def read_TCP_conf(path):
     config = {}
@@ -35,6 +30,7 @@ def convert_ieee_754_float(regs):
         return struct.unpack("<f", raw)[0]
     return None
 
+
 def float_to_ieee_754_regs(value):
     """Конвертирует float в 2 регистра Modbus (IEEE 754)"""
     if isinstance(value, str):
@@ -50,12 +46,14 @@ def convert_ieee_754_int(regs):
         return int(65536 * regs[1] + regs[0])
     return None
 
+
 def int_to_ieee_754_regs(value):
     """Конвертирует int в 2 регистра Modbus (IEEE 754 формат)"""
     value = int(value)
     reg0 = value % 65536
     reg1 = value // 65536
     return [reg0, reg1]
+
 
 def encode_ieee_754(value, dtype='int'):
     if dtype == 'int':
@@ -72,6 +70,7 @@ def decode_ieee_754(regs, dtype='int'):
     elif dtype == 'byte':
         return regs
 
+
 def coils_to_registers(coils, bits_per_register=16):
     """
     Преобразует список булевых значений (coils) в список 16-битных регистров.
@@ -85,6 +84,7 @@ def coils_to_registers(coils, bits_per_register=16):
                 reg_val |= 1 << bit_index
         registers.append(reg_val)
     return registers
+
 
 def ask_plc(client, conf, m):
     output = {'f':0.0}

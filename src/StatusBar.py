@@ -1,6 +1,5 @@
 from PySide6.QtWidgets import QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton
 from PySide6.QtGui import QIcon
-import numpy as np
 from src.utils import write_conf
 from PySide6.QtCore import Signal
 
@@ -47,10 +46,9 @@ class Parameter(QWidget):
         """)
         self.setMaximumHeight(80)
 
-
     def update_value(self, new_value):
-
         self.value.setText(round_str(new_value, self.dec))
+
 
 class IncreasedParameter(Parameter):
     def __init__(self, name, units, dec):

@@ -174,7 +174,6 @@ class MainWindow(QMainWindow):
     def get_time(self):
         return self.timer.elapsed() + self.time_offset
 
-
     def closeEvent(self, event):
         self.worker.stop()
         self.thread.quit()
@@ -182,8 +181,6 @@ class MainWindow(QMainWindow):
         self.datasaver.save_data('temp.csv')
         self.graph_bar.close()
         super().closeEvent(event)
-
-
 
     def on_data_ready(self, data, rel_time):
         if data:
@@ -220,7 +217,6 @@ class MainWindow(QMainWindow):
         self.datasaver.drop_data()
         self.datasaver.start_session()
 
-
     def update_frequency_regression(self, data, rel_time):
         """Обновляет частоту f по линейной регрессии на последних N точках."""
         N = data.get("N")
@@ -229,7 +225,6 @@ class MainWindow(QMainWindow):
 
         self._time_window.append(rel_time / 1000.0)  # в сек
         self._cycle_window.append(N)
-
 
         if len(self._time_window) > self._freq_window_size:
             self._time_window.pop(0)

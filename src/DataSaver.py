@@ -3,41 +3,22 @@ import pandas as pd
 from pathlib import Path
 from collections import deque
 from PySide6.QtCore import QObject, QThread, Signal, Slot
-from src.utils import read_json
+from src.utils import read_json, RollingMean
 import time
 import shutil
 
 CHUNK_SIZE = 10_000
 MAX_POINTS_RAM = 100_000
 
-
-class RollingMean:
-    """O(1) скользящее среднее по фиксированному окну."""
-    def __init__(self, window: int):
-        self.window = max(int(window), 0)
-        self.buf = deque(maxlen=self.window if self.window > 0 else 1)
-        self.sum = 0.0
-
-    def reset(self):
-        self.buf.clear()
-        self.sum = 0.0
-
-    def update(self, x: float) -> float:
-        if self.window <= 0:
-            return x
-        if len(self.buf) == self.buf.maxlen:
-            self.sum -= self.buf[0]
-        self.buf.append(x)
-        self.sum += x
-        return self.sum / len(self.buf)
-
-def round_dataframe(df: pd.DataFrame, decimals: dict={'Время, с':2, 'Наработка, цикл':0, 'Уровень нагружения, кН':2,
-                                                      'Крутящий момент, Нм':2, 'Температура, °С':2,
-                                                      'Частота нагружения, Гц':2, 'Значение зазора, мм':3}) -> pd.DataFrame:
+def round_dataframe(df: pd.DataFrame, decimals=None) -> pd.DataFrame:
     """
     Округляет все числовые значения в DataFrame до указанного числа знаков.
     Строки и другие типы остаются без изменений.
     """
+    if decimals is None:
+        decimals = {'Время, с': 2, 'Наработка, цикл': 0, 'Уровень нагружения, кН': 2,
+                    'Крутящий момент, Нм': 2, 'Температура, °С': 2,
+                    'Частота нагружения, Гц': 2, 'Значение зазора, мм': 3}
     for numeric_col in decimals.keys():
 
         df[numeric_col] = df[numeric_col].round(decimals[numeric_col])
@@ -232,7 +213,6 @@ class DataSaver(QObject):
         channels_str = str(self.config.get('filter_channels',
                                 self.config.get('graph_filter_channels', ''))).strip()
         self._filter_channels = [c.strip() for c in channels_str.split(',') if c.strip()]
-        # банк фильтров по каналам
         self._filters = {ch: RollingMean(self._filter_frame) for ch in self._filter_channels}
 
         max_points_ram = int(self.config.get('datasaver_max_points', MAX_POINTS_RAM))
@@ -254,12 +234,10 @@ class DataSaver(QObject):
         for ch in self._filter_channels:
             if ch in out:
                 v = out[ch]
-                # пропуски данных: сбрасываем фильтр, значение оставляем как есть
                 if v is None or (isinstance(v, float) and np.isnan(v)):
                     if ch in self._filters:
                         self._filters[ch].reset()
                 else:
-                    # float -> фильтр -> округление до 3 знаков для консистентности
                     filt = self._filters[ch]
                     out[ch] = float(np.round(filt.update(float(v)), 3))
         return out
@@ -270,7 +248,6 @@ class DataSaver(QObject):
     def get_matrices(self):
         return self.worker.get_data()
 
-    # --- новые методы ---
     def start_session(self):
         """Начать новую сессию записи (новая папка, чистое оперативное окно)."""
         self.worker.start_new_session()

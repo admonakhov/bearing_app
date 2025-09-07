@@ -27,7 +27,6 @@ class Parameter(QWidget):
             }
         """)
 
-
     def on_value_finished(self):
         text = self.value.text()
         state = self.validator.validate(text, 0)[0]
@@ -43,6 +42,7 @@ class Parameter(QWidget):
 
     def set_invalid(self):
         self.value.setStyleSheet("QLineEdit { background-color: red}")
+
     def set_valid(self):
         self.value.setStyleSheet("")
 
@@ -52,6 +52,7 @@ class TestBar(QWidget):
         super().__init__()
         self.main_window = parent
         self.test_params = self.get_test_parameters()
+        # Input fields
         self.force = Parameter('Уровень нагружения', 'кН', self.test_params['P_tar'], 100, -100)
         self.freq = Parameter('Частота нагружения', 'Гц', self.test_params['f_tar'], 100)
         self.force_rate = Parameter('Скорость нагружения', 'c', self.test_params['P_rate_tar'], 100)
@@ -59,8 +60,7 @@ class TestBar(QWidget):
         self.m_max = Parameter('Верхний предел по моменту', 'Нм', self.test_params['M_max'], 50, -50)
         self.temp_lim = Parameter('Температура', '°С', self.test_params['T_max'], 1000)
         self.cycle_lim = Parameter('Значение наработки', 'цикл', self.test_params['N_max_lim'], 1e8)
-
-
+        # Buttons
         self.loading_btn = QPushButton('Нагружение')
         self.loading_btn.clicked.connect(self.apply_load)
         self.rotation_btn = QPushButton('Качение')
@@ -111,16 +111,16 @@ class TestBar(QWidget):
          "L_lim": self.length_lim(), "T_max": self.temp_lim(), "N_max_lim":self.cycle_lim(),
                 "M_max":self.m_max()}
 
-    def update(self, st):
-        if st[2]:
+    def update(self, state):
+        if state[2]:
             self.temp_lim.set_invalid()
         else:
             self.temp_lim.set_valid()
-        if st[5]:
+        if state[5]:
             self.m_max.set_invalid()
         else:
             self.m_max.set_valid()
-        if st[6]:
+        if state[6]:
             self.cycle_lim.set_invalid()
         else:
             self.cycle_lim.set_valid()
