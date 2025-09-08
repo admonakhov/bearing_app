@@ -7,8 +7,22 @@ from src.utils import read_json, RollingMean
 import time
 import shutil
 
-CHUNK_SIZE = 10_000
-MAX_POINTS_RAM = 100_000
+
+def add_ext(main_dict:dict, dict2add:dict):
+    for param in ['P', 'M', 'T', 'L']:
+        for key in main_dict.keys():
+            idx_max = np.where(dict2add[param]==np.max(dict2add[param]))[0]
+            idx_min = np.where(dict2add[param]==np.min(dict2add[param]))[0]
+            idx2add = np.concat((idx_max, idx_min))
+            for idx in idx2add:
+                main_dict[key].append(dict2add[key][idx])
+
+    time_arg = np.argsort(main_dict['time'])
+    for key in main_dict.keys():
+        main_dict[key] = [main_dict[key][i] for i in time_arg]
+
+    return main_dict
+
 
 def round_dataframe(df: pd.DataFrame, decimals=None) -> pd.DataFrame:
     """
@@ -29,8 +43,9 @@ class ChunkedLogger:
     Пишет чанки по CHUNK_SIZE строк в отдельные файлы в папке сессии.
     При финализации сшивает все чанки + хвост в один файл.
     """
-    def __init__(self, base_dir="results", axis_rename=None):
+    def __init__(self, base_dir="results", axis_rename=None, chunk_size=1000):
         self.base_dir = Path(base_dir)
+        self.chunk_size = chunk_size
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.axis_rename = axis_rename or {}
         self.session_dir = None
@@ -72,7 +87,7 @@ class ChunkedLogger:
         if not rows:
             return
         self.rows_buffer.extend(rows)
-        if len(self.rows_buffer) >= CHUNK_SIZE:
+        if len(self.rows_buffer) >= self.chunk_size:
             self._flush_chunk()
 
     def finalize_to(self, out_path: Path, delete_chunks: bool = True) -> Path:
@@ -117,21 +132,23 @@ class DataSaverWorker(QObject):
     """Работает в отдельном потоке, принимает новые данные и хранит их (RAM окно + чанки)."""
     finished = Signal()
 
-    def __init__(self, offsets, params=None, max_points_ram: int = MAX_POINTS_RAM):
+    def __init__(self, offsets, params=None, max_points_ram: int = 1000):
         super().__init__()
         if params is None:
             params = ['time', 'N', 'P', 'M', 'T', 'f', 'L']
-
+        self.max_points_ram = max_points_ram
         self.offsets = offsets
         self.max_points_ram = int(max_points_ram)
         self.data = {p: deque(maxlen=self.max_points_ram) for p in params}
+        self.data_down = {p: deque(maxlen=self.max_points_ram) for p in params}
         self._running = True
 
         axis = read_json('axis.json')
         axis_rename = {v: k for k, v in axis.items()}
 
-        self.logger = ChunkedLogger(base_dir="results", axis_rename=axis_rename)
+        self.logger = ChunkedLogger(base_dir="results", axis_rename=axis_rename, chunk_size=self.max_points_ram)
         self._batch = []
+
 
     @Slot(dict, float)
     def add_data(self, input_dict, elapsed_time_ms: float):
@@ -142,7 +159,6 @@ class DataSaverWorker(QObject):
         if not self._running:
             return
 
-        # время (сек)
         t = float(elapsed_time_ms) / 1000.0
         self.data['time'].append(t)
 
@@ -163,7 +179,8 @@ class DataSaverWorker(QObject):
 
         self._batch.append(row)
 
-        if len(self._batch) >= CHUNK_SIZE:
+        if len(self._batch) >= self.max_points_ram:
+            self.data_down = add_ext(self.data_down, self.data)
             try:
                 self.logger.session_dir.mkdir(parents=True, exist_ok=True)
             except Exception:
@@ -171,14 +188,19 @@ class DataSaverWorker(QObject):
             self.logger.append_rows(self._batch)
             self._batch.clear()
 
-    def get_data(self):
+    def get_data(self, ds=False):
         """Оперативное окно для графика (numpy-массивы)."""
-        return {k: np.fromiter(v, dtype=np.float32) if len(v) else np.array([], dtype=np.float32)
-                for k, v in self.data.items()}
+        if ds:
+            return {k: np.fromiter(v, dtype=np.float32) if len(v) else np.array([], dtype=np.float32)
+                        for k, v in self.data_down.items()}
+        else:
+            return {k: np.fromiter(v, dtype=np.float32) if len(v) else np.array([], dtype=np.float32)
+                        for k, v in self.data.items()}
 
     def clear(self):
         for k in self.data.keys():
             self.data[k].clear()
+            self.data_down[k].clear()
 
     def start_new_session(self):
         """Сбросить оперативное окно и начать новую папку сессии для чанков."""
@@ -215,7 +237,7 @@ class DataSaver(QObject):
         self._filter_channels = [c.strip() for c in channels_str.split(',') if c.strip()]
         self._filters = {ch: RollingMean(self._filter_frame) for ch in self._filter_channels}
 
-        max_points_ram = int(self.config.get('datasaver_max_points', MAX_POINTS_RAM))
+        max_points_ram = int(self.config.get('datasaver_max_points', parent.config['values_to_view']))
 
         self.thread = QThread()
         self.worker = DataSaverWorker(self.offsets, max_points_ram=max_points_ram)
@@ -238,15 +260,15 @@ class DataSaver(QObject):
                     if ch in self._filters:
                         self._filters[ch].reset()
                 else:
-                    filt = self._filters[ch]
-                    out[ch] = float(np.round(filt.update(float(v)), 3))
+                    _filter = self._filters[ch]
+                    out[ch] = float(np.round(_filter.update(float(v)), 3))
         return out
 
     def add_to_matrix(self, input_dict, elapsed_time_ms):
         self.data_in.emit(input_dict, elapsed_time_ms)
 
-    def get_matrices(self):
-        return self.worker.get_data()
+    def get_matrices(self, ds=False):
+        return self.worker.get_data(ds)
 
     def start_session(self):
         """Начать новую сессию записи (новая папка, чистое оперативное окно)."""

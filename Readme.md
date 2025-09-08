@@ -1,6 +1,12 @@
+<H3> Bearing Test App ver. 1.2.0: </H3>
+    - Улучшена производительность <br>
+    - Добавлен алгоритм проверки лицензии <br>
+    - Реализовано стабильное отображение графика на протяжении всего испытания <br>
+    - Очистка кода <br>
+
 <H3> Bearing Test App ver. 1.1.0a: </H3>
     - Исправлен алгоритм выгрузки данных<br>
-    - Исправлен алгоритм фильрации данных<br>
+    - Исправлен алгоритм фильтрации данных<br>
     - Добавлено отображение количества циклов нагружения после остановки<br>
     - Очистка кода <br>
 
@@ -40,3 +46,6 @@ pip install -r requirements.txt
 
 Сборка приложения: <br>
 pyinstaller --onefile --windowed --icon=src\icon.ico --name=BearingTestApp main.py
+
+
+python -m nuitka   --standalone --onefile  --output-filename=BearingTestApp.exe --enable-plugin=pyside6   --windows-icon-from-ico=src\icon.ico --windows-console-mode=disable --follow-imports   --include-data-files=axis.json=axis.json   --include-data-files=multiplier.json=multiplier.json   --include-data-files=modbus_adr.cfg=modbus_adr.cfg   --include-data-files=app.cfg=app.cfg   --include-data-files=offsets.param=offsets.param   --include-data-files=test_parameters.param=test_parameters.param   main.py

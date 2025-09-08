@@ -97,14 +97,15 @@ class MainApp(QApplication):
         super().__init__(sys.argv)
 
 
+
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, lic):
         super().__init__()
         # Read app configuration
         self.config = read_conf('app.cfg')
+        self.check_lic(lic)
         self.offsets = read_conf('offsets.param', float)
-        # View parameters
-        self.setWindowTitle(self.config['name'])
+
         # Logic part
         self.datasaver = DataSaver(self)
         self.plc = Client(self.config['host'])
@@ -119,7 +120,6 @@ class MainWindow(QMainWindow):
         self.worker.data_ready.connect(self.on_data_ready)
         self.worker.error.connect(self.on_error)
 
-        self.thread.start()
 
         # Main Widget
         self.status_bar = StatusBar(self)
@@ -142,15 +142,25 @@ class MainWindow(QMainWindow):
         widget.setLayout(self.main_layout)
         self.setCentralWidget(widget)
 
-        self.timer.start()
-        self.time_offset = self.timer.elapsed()
-        self.datasaver.start_session()
-
         self._freq_window_size = 100
         self._time_window = []
         self._cycle_window = []
         self._last_freq = None
         self.elapsed_time = 0
+
+        if self.lic_checked:
+            self.thread.start()
+            self.timer.start()
+            self.time_offset = self.timer.elapsed()
+            self.datasaver.start_session()
+
+    def check_lic(self, lic):
+        if lic:
+            self.lic_checked = True
+            self.setWindowTitle(f"{self.config['name']} - {lic}")
+        else:
+            self.lic_checked = False
+            self.setWindowTitle(f"{self.config['name']} - Версия не зарегистрирована")
 
     def _resend_setpoints(self):
         params = self.settings_bar()

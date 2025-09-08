@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLab
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer, QThread, Signal, QObject
 import numpy as np
-from src.utils import read_json
+from src.utils import read_json, _align_xy
 
 
 class GraphWorker(QObject):
@@ -124,6 +124,7 @@ class GraphWindow(QWidget):
         self.axis.on_selection_changeX = self.wrap_axis_change(self.axis.on_selection_changeX)
         self.axis.on_selection_changeY = self.wrap_axis_change(self.axis.on_selection_changeY)
         self.axis.change_type = self.wrap_axis_change(self.axis.change_type)
+        self.graph.graphWidget.setDownsampling(auto=True)
 
     def wrap_axis_change(self, func):
         def wrapper(*args, **kwargs):
@@ -133,9 +134,6 @@ class GraphWindow(QWidget):
         return wrapper
 
     def update_graph(self):
-        data = self.datasaver.get_matrices()
-        if not data or len(data.get("time", [])) == 0:
-            return
 
         x_key = self.axis.x
         y_key = self.axis.y
@@ -143,29 +141,40 @@ class GraphWindow(QWidget):
         self.graph.graphWidget.setLabel('bottom', self.axis.xlbl)
         self.graph.graphWidget.setLabel('left', self.axis.ylbl)
 
-        x_full = np.asarray(data.get(x_key, []), dtype=np.float32)
-        y_full = np.asarray(data.get(y_key, []), dtype=np.float32)
-        if x_full.size == 0 or y_full.size == 0:
-            return
 
-        n = min(len(x_full), len(y_full))
-        if n <= 1:
-            return
-        x_full = x_full[-n:]
-        y_full = y_full[-n:]
+        if self.axis.graph_type == 'rolling':
+            data = self.datasaver.get_matrices()
+            if not data or len(data.get("time", [])) == 0:
+                return
 
-        x = x_full[-self.n_vals:]
-        y = y_full[-self.n_vals:]
+            x_full = np.asarray(data.get(x_key, []), dtype=np.float32)
+            y_full = np.asarray(data.get(y_key, []), dtype=np.float32)
+            n = min(len(x_full), len(y_full))
+            x = x_full[-self.n_vals:n:2]
+            y = y_full[-self.n_vals:n:2]
 
-        mask = np.isfinite(x) & np.isfinite(y)
-        if not np.any(mask):
-            return
-        x = x[mask]
-        y = y[mask]
+        else:
+
+            data = self.datasaver.get_matrices(ds=True)
+            if not data or len(data.get("time", [])) == 0:
+                data = self.datasaver.get_matrices()
+                if not data or len(data.get("time", [])) == 0:
+                    return
+            x = np.asarray(data.get(x_key, []), dtype=np.float32)
+            y = np.asarray(data.get(y_key, []), dtype=np.float32)
+            step = x.shape[0] // 50 + 1
+            x = x[::step]
+            y = y[::step]
+
+
+
+
+
+        x, y = _align_xy(x, y)
+
         if x.size <= 1:
             return
 
-        self.graph.graphWidget.setDownsampling(auto=False)
         self.graph.curve.setData(x, y)
 
         self.full_redraw = False

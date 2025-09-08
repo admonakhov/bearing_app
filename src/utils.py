@@ -70,3 +70,28 @@ class RollingMean:
         self.buf.append(x)
         self.sum += x
         return self.sum / len(self.buf)
+
+
+def _align_xy(x, y):
+    """Return x,y as float arrays of equal length with NaN/Inf removed.
+       Keeps the most recent samples when trimming."""
+    x = np.asarray(x, dtype=float).ravel()
+    y = np.asarray(y, dtype=float).ravel()
+
+    n = min(x.size, y.size)
+    if n == 0:
+        return x[:0], y[:0]
+
+    if x.size != y.size:
+        x = x[-n:]
+        y = y[-n:]
+
+
+    mask = np.isfinite(x) & np.isfinite(y)
+    if mask.any():
+        x = x[mask]
+        y = y[mask]
+    else:
+        x = x[:0]
+        y = y[:0]
+    return x, y

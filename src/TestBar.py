@@ -106,10 +106,19 @@ class TestBar(QWidget):
         self.loaded = False
         self.rotating = False
 
+        self.lic_fault()
+
     def __call__(self):
         return {"P_tar": self.force(), "f_tar": self.freq(), "P_rate_tar": self.force_rate(),
          "L_lim": self.length_lim(), "T_max": self.temp_lim(), "N_max_lim":self.cycle_lim(),
                 "M_max":self.m_max()}
+
+    def lic_fault(self):
+        if not self.main_window.lic_checked:
+            self.loading_btn.setEnabled(False)
+            self.clean_data.setEnabled(False)
+            self.stop_btn.setEnabled(False)
+            self.save_button.setEnabled(False)
 
     def update(self, state):
         if state[2]:
