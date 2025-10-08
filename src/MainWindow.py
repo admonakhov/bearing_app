@@ -185,6 +185,9 @@ class MainWindow(QMainWindow):
         return self.timer.elapsed() + self.time_offset
 
     def closeEvent(self, event):
+        self.stop()
+        self.settings_bar.stop()
+        time.sleep(1)
         self.worker.stop()
         self.thread.quit()
         self.thread.wait()
@@ -241,8 +244,7 @@ class MainWindow(QMainWindow):
             self._cycle_window.pop(0)
 
         if len(self._time_window) >= 2:
-            # линейная регрессия: цикл от времени
             coef = np.polyfit(self._time_window, self._cycle_window, 1)
-            slope = coef[0]  # dN/dt ~ частота
+            slope = coef[0]
             self._last_freq = slope
         return self._last_freq

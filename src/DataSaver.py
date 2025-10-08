@@ -10,10 +10,10 @@ import shutil
 
 def add_ext(main_dict:dict, dict2add:dict):
     for param in ['P', 'M', 'T', 'L']:
+        arr = np.abs(dict2add[param])
         for key in main_dict.keys():
-            idx_max = np.where(dict2add[param]==np.max(dict2add[param]))[0]
-            idx_min = np.where(dict2add[param]==np.min(dict2add[param]))[0]
-            idx2add = np.concat((idx_max, idx_min))
+            idx_max = np.where(arr==np.max(arr))[0]
+            idx2add = idx_max
             for idx in idx2add:
                 main_dict[key].append(dict2add[key][idx])
 

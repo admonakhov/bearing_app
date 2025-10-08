@@ -124,7 +124,7 @@ class GraphWindow(QWidget):
         self.axis.on_selection_changeX = self.wrap_axis_change(self.axis.on_selection_changeX)
         self.axis.on_selection_changeY = self.wrap_axis_change(self.axis.on_selection_changeY)
         self.axis.change_type = self.wrap_axis_change(self.axis.change_type)
-        self.graph.graphWidget.setDownsampling(auto=True)
+        self.graph.graphWidget.setDownsampling(auto=False)
 
     def wrap_axis_change(self, func):
         def wrapper(*args, **kwargs):
@@ -157,18 +157,15 @@ class GraphWindow(QWidget):
 
             data = self.datasaver.get_matrices(ds=True)
             if not data or len(data.get("time", [])) == 0:
-                data = self.datasaver.get_matrices()
-                if not data or len(data.get("time", [])) == 0:
-                    return
+                return
+                # data = self.datasaver.get_matrices()
+                # if not data:
+                #     return
             x = np.asarray(data.get(x_key, []), dtype=np.float32)
             y = np.asarray(data.get(y_key, []), dtype=np.float32)
-            step = x.shape[0] // 50 + 1
+            step = x.shape[0] // 200 + 1
             x = x[::step]
             y = y[::step]
-
-
-
-
 
         x, y = _align_xy(x, y)
 

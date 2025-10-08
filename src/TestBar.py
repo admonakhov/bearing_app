@@ -135,9 +135,7 @@ class TestBar(QWidget):
             self.cycle_lim.set_valid()
 
     def apply_load(self):
-        params = self()
-        self.write_test_parametrs(params)
-        self.main_window.worker.enqueue_cmd('send_params', params, self.main_window.offsets)
+        self.send_parameters()
 
         if self.loaded:
             self.stop()
@@ -153,6 +151,7 @@ class TestBar(QWidget):
 
 
     def rotate(self):
+        self.send_parameters()
         if self.rotating:
             self.rotating = False
             self.main_window.worker.enqueue_cmd('stop_rotate')
@@ -210,6 +209,11 @@ class TestBar(QWidget):
         with open('test_parameters.param', 'w') as file:
             for key in params.keys():
                 file.write(f'{key} {params[key]}\n')
+
+    def send_parameters(self):
+        params = self()
+        self.write_test_parametrs(params)
+        self.main_window.worker.enqueue_cmd('send_params', params, self.main_window.offsets)
 
     def save_file(self):
         path = get_file_path()
