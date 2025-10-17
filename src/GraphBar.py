@@ -3,10 +3,10 @@ import pyqtgraph as pg
 from PySide6.QtCore import QTimer, QThread, Signal, QObject
 import numpy as np
 from src.utils import read_json, _align_xy
-
+from src.SettingsWindow import PID_button
 
 class GraphWorker(QObject):
-    data_ready = Signal(object, object)  # x, y
+    data_ready = Signal(object, object)
     def __init__(self, datasaver, axis, n_vals, filter_frame):
         super().__init__()
         self.datasaver = datasaver
@@ -187,10 +187,14 @@ class GraphWindow(QWidget):
 class GraphBar(GraphWindow):
     def __init__(self, parent):
         super().__init__(parent.datasaver, parent.config)
+        pid_settings =  PID_button()
         self.windows = []
         self.add_btn = QPushButton("+")
         self.add_btn.clicked.connect(self.add_graph_window)
-        self.layout.addWidget(self.add_btn)
+        btns_layout = QHBoxLayout()
+        btns_layout.addWidget(self.add_btn)
+        btns_layout.addWidget(pid_settings)
+        self.layout.addLayout(btns_layout)
 
     def add_graph_window(self):
         win = GraphWindow(self.datasaver, self.config)
