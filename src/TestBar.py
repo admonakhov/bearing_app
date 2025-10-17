@@ -114,7 +114,7 @@ class TestBar(QWidget):
                 "M_max":self.m_max()}
 
     def lic_fault(self):
-        if not self.main_window.lic_checked:
+        if not self.main_window.checked:
             self.loading_btn.setEnabled(False)
             self.clean_data.setEnabled(False)
             self.stop_btn.setEnabled(False)

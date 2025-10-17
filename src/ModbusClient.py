@@ -142,6 +142,20 @@ class Client:
                 value = value + offsets['L']
             write_plc(self.client, get_registers(param, self.config),
                       encode_ieee_754(value, self.config[param][0]))
+            
+    def send_PID(self, P, I, D, SUP, T2F):
+        write_plc(self.client, get_registers('P_', self.config), encode_ieee_754(P, self.config['P_'][0]))
+        write_plc(self.client, get_registers('I_', self.config), encode_ieee_754(I, self.config['I_'][0]))
+        write_plc(self.client, get_registers('D_', self.config), encode_ieee_754(D, self.config['D_'][0]))
+        write_plc(self.client, get_registers('SUP', self.config), encode_ieee_754(SUP, self.config['SUP'][0]))
+        write_plc(self.client, get_registers('T2F', self.config), encode_ieee_754(T2F, self.config['T2F'][0]))
+
+    def get_parameters(self):
+        data = {}
+        for param in ['P_', 'I_', 'D_', 'SUP', 'T2F']:
+            regs = self.client.read_holding_registers(self.config[param][1], self.config[param][2])
+            data[param] = decode_ieee_754(regs, self.config[param][0])
+        return data
 
     def load(self):
         adr = self.config['Cmd'][1]*16 + 0

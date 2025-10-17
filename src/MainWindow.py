@@ -7,6 +7,7 @@ from src.TestBar import TestBar
 from src.GraphBar import GraphBar
 from src.ModbusClient import Client
 from src.DataSaver import DataSaver
+from src.SettingsWindow import check_PID    
 import sys
 import time
 
@@ -103,7 +104,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         # Read app configuration
         self.config = read_conf('app.cfg')
-        self.check_lic(lic)
+        self.checked = False
         self.offsets = read_conf('offsets.param', float)
 
         # Logic part
@@ -147,20 +148,26 @@ class MainWindow(QMainWindow):
         self._cycle_window = []
         self._last_freq = None
         self.elapsed_time = 0
+        
+        self.check_hardware(lic, PID_filled=check_PID(self.plc))
 
-        if self.lic_checked:
+        if self.checked:
             self.thread.start()
             self.timer.start()
             self.time_offset = self.timer.elapsed()
             self.datasaver.start_session()
 
-    def check_lic(self, lic):
-        if lic:
-            self.lic_checked = True
+    def check_hardware(self, lic, PID_filled):
+        if lic and PID_filled:
+            self.checked = True
             self.setWindowTitle(f"{self.config['name']} - {lic}")
-        else:
-            self.lic_checked = False
+        elif not lic:
+            self.checked = False
             self.setWindowTitle(f"{self.config['name']} - Версия не зарегистрирована")
+        elif not PID_filled:
+            self.checked = False
+            self.setWindowTitle(f"{self.config['name']} - Параметры PID не установлены")
+
 
     def _resend_setpoints(self):
         params = self.settings_bar()

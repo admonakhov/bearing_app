@@ -187,7 +187,7 @@ class GraphWindow(QWidget):
 class GraphBar(GraphWindow):
     def __init__(self, parent):
         super().__init__(parent.datasaver, parent.config)
-        pid_settings =  PID_button()
+        pid_settings =  PID_button(parent.plc)
         self.windows = []
         self.add_btn = QPushButton("+")
         self.add_btn.clicked.connect(self.add_graph_window)
