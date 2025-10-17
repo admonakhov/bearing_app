@@ -112,7 +112,10 @@ class SettingsWindow(QDialog):
         self.fill_parameters()
 
     def send_callback(self):
-        self.main_window.worker.enqueue_cmd('send_PID')
+        if self.main_window.checked:
+            self.main_window.worker.enqueue_cmd('send_PID')
+        else:
+            self.send_parameters()
 
     def send_parameters(self):
         P = float(self.P_in.text())
