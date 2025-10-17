@@ -7,7 +7,7 @@ from src.TestBar import TestBar
 from src.GraphBar import GraphBar
 from src.ModbusClient import Client
 from src.DataSaver import DataSaver
-from src.SettingsWindow import check_PID    
+from src.SettingsWindow import check_PID, get_parameters
 import sys
 import time
 
@@ -16,8 +16,9 @@ class Worker(QObject):
     data_ready = Signal(dict, float)
     error = Signal(str)
 
-    def __init__(self, plc, interval_ms):
+    def __init__(self, plc, interval_ms, main_window):
         super().__init__()
+        self.main_window = main_window
         self.plc = plc
         self.interval = interval_ms / 1000.0
         self._running = True
@@ -56,6 +57,8 @@ class Worker(QObject):
                 self.plc.stop()
             elif name == 'reset_time':
                 self.reset_time()
+            elif name == 'send_PID':
+                self.main_window.graph_bar.pid_settings.send_parameters()
             else:
                 self.error.emit(f'Неизвестная команда: {name}')
         except Exception as e:
@@ -113,7 +116,7 @@ class MainWindow(QMainWindow):
 
         self.timer = QElapsedTimer()
         self.thread = QThread()
-        self.worker = Worker(self.plc, int(self.config['ask_int']))
+        self.worker = Worker(self.plc, int(self.config['ask_int']), self)
         self.worker.moveToThread(self.thread)
 
         # сигналы

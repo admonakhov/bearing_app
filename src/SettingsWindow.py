@@ -22,9 +22,10 @@ def check_PID(plc):
         return False
 
 class PID_button(QWidget):
-    def __init__(self, plc):
+    def __init__(self, main_window):
         super().__init__()
-        self.plc = plc
+        self.main_window = main_window
+        self.plc = main_window.plc
         main_layout = QHBoxLayout(self)
         gear_btn = QToolButton(self)
         gear_btn.setText("⚙")
@@ -35,6 +36,7 @@ class PID_button(QWidget):
         self.setLayout(main_layout)
         self._settings_window = None
         self.setMaximumWidth(50)
+        self.fill_PID()
 
     def _open_settings(self):
         if self._settings_window is None:
@@ -42,16 +44,25 @@ class PID_button(QWidget):
         self._settings_window.show()
         self._settings_window.raise_()
         self._settings_window.activateWindow()
+        self.send_parameters = self._settings_window.send_parameters
 
+    def fill_PID(self):
+        P, I, D, SUP, T2F = get_parameters(self.plc)
+        self.P = P
+        self.I = I
+        self.D = D
+        self.SUP = SUP
+        self.T2F = T2F
 
 
 class SettingsWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.main_window = parent.main_window
         self.setWindowTitle("Настройки")
         self.setModal(False)
         self.resize(400, 300)
-        self.plc = parent.plc
+        self.parent = parent
         main_layout = QVBoxLayout(self)
         btns_layout = QHBoxLayout()
         param_layout = QGridLayout()
@@ -63,17 +74,11 @@ class SettingsWindow(QDialog):
         for i, widget in enumerate(['', 'P', 'I', 'D', 'SUP', 'T2F']):
             param_layout.addWidget(QLabel(widget), 0, i)
 
-        out_label = QLabel('Актуальные значения:')
         self.P_out=QLineEdit()
         self.I_out=QLineEdit()
         self.D_out=QLineEdit()
         self.SUP_out=QLineEdit()
         self.T2F_out=QLineEdit()
-        param_layout.addWidget(out_label, 1, 0)
-
-        for i, widget in enumerate([self.P_out, self.I_out, self.D_out, self.SUP_out, self.T2F_out]):
-            widget.setReadOnly(True)
-            param_layout.addWidget(widget, 1, i+1)
 
         in_label = QLabel('Новые значения:')
         self.P_in= QLineEdit()
@@ -88,7 +93,7 @@ class SettingsWindow(QDialog):
             param_layout.addWidget(widget, 2, i+1)
 
         main_layout.addLayout(param_layout)
-        main_layout.addSpacing(50)
+        main_layout.addSpacing(100)
         main_layout.addWidget(warning_lbl)
         main_layout.addSpacing(20)
         main_layout.addWidget(self.accept)
@@ -99,15 +104,15 @@ class SettingsWindow(QDialog):
         btns_layout.addWidget(self.btn_send)
         btns_layout.addWidget(btn_close)
         btn_close.clicked.connect(self.close)
-        self.btn_send.clicked.connect(self.send_parameters)
+        self.btn_send.clicked.connect(self.send_callback)
         self.btn_send.setEnabled(False)
         self.accept.stateChanged.connect(self.accept_changed)
         main_layout.addLayout(btns_layout)
 
-        self.update_timer = QTimer(self)
-        self.update_timer.timeout.connect(self.fill_parameters)
-        self.update_timer.start(1000) 
         self.fill_parameters()
+
+    def send_callback(self):
+        self.main_window.worker.enqueue_cmd('send_PID')
 
     def send_parameters(self):
         P = float(self.P_in.text())
@@ -115,16 +120,24 @@ class SettingsWindow(QDialog):
         D = float(self.D_in.text())
         SUP = float(self.SUP_in.text())
         T2F = float(self.T2F_in.text())
-        self.plc.send_PID(P, I, D, SUP, T2F)
+
+        self.parent.plc.send_PID(P, I, D, SUP, T2F)
+
+        self.parent.P = P
+        self.parent.I = I
+        self.parent.D = D
+        self.parent.SUP = SUP
+        self.parent.T2F = T2F
+
+        self.fill_parameters()
 
 
-    def fill_parameters(self, P, I, D, SUP, T2F):
-        P, I, D, SUP, T2F = get_parameters(self.plc)
-        self.P_out.setText(str(P))
-        self.I_out.setText(str(I))
-        self.D_out.setText(str(D))
-        self.SUP_out.setText(str(SUP))
-        self.T2F_out.setText(str(T2F))
+    def fill_parameters(self):
+        self.P_in.setText(str(self.parent.P))
+        self.I_in.setText(str(self.parent.I))
+        self.D_in.setText(str(self.parent.D))
+        self.SUP_in.setText(str(self.parent.SUP))
+        self.T2F_in.setText(str(self.parent.T2F))
 
 
     def accept_changed(self, state):
