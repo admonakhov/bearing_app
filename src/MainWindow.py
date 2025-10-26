@@ -59,6 +59,7 @@ class Worker(QObject):
                 self.reset_time()
             elif name == 'send_PID':
                 self.main_window.graph_bar.pid_settings.send_parameters()
+                self.plc.write_PID()
             else:
                 self.error.emit(f'Неизвестная команда: {name}')
         except Exception as e:
@@ -113,7 +114,10 @@ class MainWindow(QMainWindow):
         # Logic part
         self.datasaver = DataSaver(self)
         self.plc = Client(self.config['host'])
-
+        self.check_hardware(lic,
+                            # PID_filled=check_PID(self.plc)
+                            PID_filled = True
+                            )
         self.timer = QElapsedTimer()
         self.thread = QThread()
         self.worker = Worker(self.plc, int(self.config['ask_int']), self)
@@ -152,7 +156,7 @@ class MainWindow(QMainWindow):
         self._last_freq = None
         self.elapsed_time = 0
         
-        self.check_hardware(lic, PID_filled=check_PID(self.plc))
+
 
         if self.checked:
             self.thread.start()

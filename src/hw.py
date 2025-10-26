@@ -81,7 +81,8 @@ def get_hardware_fingerprint() -> str:
 
 def check_lic():
     lic = {'d8ef21763f1ffbbf6f211dc01e5ffd3fcf503543494493305eecdecd27541ab1': 'MA',
-           'b70acc012f8c9457c5037e909ab8ccc8283c7d3caa54ed4afac015b6d997c4e0': 'TsAGI'}
+           'b70acc012f8c9457c5037e909ab8ccc8283c7d3caa54ed4afac015b6d997c4e0': 'TsAGI',
+           '837158e975a72030d16911f20d6118a23cd001b8ce771263768b2dfd5a811682': 'TsAGI'}
     key = get_hardware_fingerprint()
     if key in  lic.keys():
         return lic[key]

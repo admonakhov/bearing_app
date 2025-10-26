@@ -143,9 +143,7 @@ class TestBar(QWidget):
             self.main_window.start()
             self.loaded = True
             self.loading_btn.setText('Стоп')
-
             self.main_window.worker.enqueue_cmd('load')
-
             self.rotation_btn.setEnabled(True)
             self.stop_btn.setEnabled(True)
 

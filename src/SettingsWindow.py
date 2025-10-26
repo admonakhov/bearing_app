@@ -154,5 +154,3 @@ class SettingsWindow(QDialog):
             self.btn_send.setEnabled(True)
         else:
             self.btn_send.setEnabled(False)
-    
-

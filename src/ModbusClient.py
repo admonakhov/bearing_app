@@ -63,12 +63,15 @@ def encode_ieee_754(value, dtype='int'):
 
 
 def decode_ieee_754(regs, dtype='int'):
-    if dtype == 'int':
-        return convert_ieee_754_int(regs)
-    elif dtype == 'float':
-        return round(convert_ieee_754_float(regs), 3)
-    elif dtype == 'byte':
-        return regs
+    if regs:
+        if dtype == 'int':
+            return convert_ieee_754_int(regs)
+        elif dtype == 'float':
+            return round(convert_ieee_754_float(regs), 3)
+        elif dtype == 'byte':
+            return regs
+    else:
+        return 0
 
 
 def coils_to_registers(coils, bits_per_register=16):
@@ -167,6 +170,10 @@ class Client:
 
     def rotate(self):
         adr = self.config['Cmd'][1]*16 + 1
+        self.client.write_single_coil(adr, True)
+
+    def write_PID(self):
+        adr = self.config['Cmd'][1]*16 + 3
         self.client.write_single_coil(adr, True)
 
     def stop_rotate(self):
