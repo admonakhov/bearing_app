@@ -106,6 +106,7 @@ class MainApp(QApplication):
 class MainWindow(QMainWindow):
     def __init__(self, lic):
         super().__init__()
+        self.time_offset = 0
         # Read app configuration
         self.config = read_conf('app.cfg')
         self.checked = False

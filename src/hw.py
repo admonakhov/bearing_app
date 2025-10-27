@@ -72,8 +72,8 @@ def get_hardware_fingerprint() -> str:
         platform.machine(),
         _cpu_brand(),
         _board_uuid(),
-        _disk_serial(),
-        _mac_addr(),
+        # _disk_serial(),
+        # _mac_addr(),
     ]
     norm = "|".join(x.strip().lower() for x in pieces if x)
     return hashlib.sha256(norm.encode("utf-8")).hexdigest()
@@ -82,7 +82,8 @@ def get_hardware_fingerprint() -> str:
 def check_lic():
     lic = {'d8ef21763f1ffbbf6f211dc01e5ffd3fcf503543494493305eecdecd27541ab1': 'MA',
            'b70acc012f8c9457c5037e909ab8ccc8283c7d3caa54ed4afac015b6d997c4e0': 'TsAGI',
-           '837158e975a72030d16911f20d6118a23cd001b8ce771263768b2dfd5a811682': 'TsAGI'}
+           '837158e975a72030d16911f20d6118a23cd001b8ce771263768b2dfd5a811682': 'TsAGI',
+           '758a3643417619d0d282128309e596015471c6eaf7f8c175cc10675faf1ff555': 'TsAGI',}
     key = get_hardware_fingerprint()
     if key in  lic.keys():
         return lic[key]
@@ -91,8 +92,6 @@ def check_lic():
 
 
 if __name__ == '__main__':
-    device, key = get_hardware_fingerprint()
+    key = get_hardware_fingerprint()
     with open('configure.txt', 'w') as file:
-        file.write(device)
-        file.write('\n')
         file.write(key)
